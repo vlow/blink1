@@ -18,9 +18,10 @@
 extern "C" {
 #endif
 
-#define blink1_max_devices 16
+#define blink1_max_devices 32
 
-#define cache_max 16  
+#define cache_max blink1_max_devices
+//#define cache_max 16  
 #define serialstrmax (8 + 1) 
 #define pathstrmax 128
 

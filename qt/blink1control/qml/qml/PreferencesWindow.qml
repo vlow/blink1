@@ -11,8 +11,8 @@ import QtQuick.Dialogs 1.0
 Window {
     id: prefsWindow
 
-    width: mw.mac() ? 570 : 560 // Win version experimentally determined
-    height: mw.mac() ? 510 : 450
+    width:  mw.mac() ? 590 : 560 // Win version experimentally determined
+    height: mw.mac() ? 520 : 450
 
     // FIXME: surely there's a shorter way of saying "no resize"?
     //maximumWidth: width
@@ -20,7 +20,7 @@ Window {
     //minimumWidth: width
     //minimumHeight: height
 
-    //font.pixelSize:12
+    //font.pixelSize:12  // this doesn't work
     
     color: "#f9f9f9"
 
@@ -52,7 +52,7 @@ Window {
                 CheckBox {
                     id: minimizedCheckbox
                     text: "Start minimized"
-                    checked: mw.startmin
+                    checked: mw.startMinimized
                     //onHoveredChanged: { console.log("hello "+hovered); }//ToolTipCreator.create("text on the tooltip, yo", parentItem).show() }
                 }
                 CheckBox {
@@ -251,8 +251,8 @@ Window {
             id: groupBlink1SettingsSaveLoad
             title: "Import/Export settings"
             Layout.fillWidth: true
-            ColumnLayout {
-                Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
+            RowLayout {
+                //Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
                 Button {
                     text: "Export Settings "
                     onClicked: {
@@ -264,6 +264,36 @@ Window {
                     onClicked: {
                         fileDialogImport.open()
                     }
+                }
+            }
+        }
+        GroupBox {
+            id: groupBlink1Logging
+            title: "Logging / Debug"
+            Layout.fillWidth: true
+            ColumnLayout {
+                Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
+                CheckBox {
+                    id: loggingCheckbox
+                    text: "Enable logging"
+                    checked: mw.logging
+                }
+                RowLayout { 
+                Button {
+                    text: "open log file"
+                    tooltip: mw.getLogFileName()
+                    onClicked: {
+                        Qt.openUrlExternally("file:///"+mw.getLogFileName())
+                        //Qt.openUrlExternally("file://"+mw.getLogFileName())
+                    }        
+                }
+                Button {
+                    text: "open settings file"
+                    tooltip: mw.getSettingsFileName()
+                    onClicked: {
+                        Qt.openUrlExternally("file:///"+mw.getSettingsFileName())
+                    }        
+                }
                 }
             }
         }
@@ -282,11 +312,12 @@ Window {
                 onClicked: {
                     console.log("saving preferences...");
                     mw.enableServer = enableServerCheckbox.checked;
-                    mw.startmin = minimizedCheckbox.checked;
+                    mw.startMinimized = minimizedCheckbox.checked;
                     mw.autorun = loginCheckbox.checked;
                     mw.enableGamma = gammaCheckbox.checked;
                     mw.dockIcon = dockIconCheckbox.checked;
-
+                    mw.logging = loggingCheckbox.checked;
+                    
                     mw.serverHost = (serverHostGroup.current == serverHostAny) ? "any" : "localhost";
                     mw.serverPort = serverPortText.text;
 
@@ -324,7 +355,7 @@ Window {
 
         // load up values because bindings break? FIXME: don't understand this fully
         enableServerCheckbox.checked = mw.enableServer
-        minimizedCheckbox.checked = mw.startmin
+        minimizedCheckbox.checked = mw.startMinimized
         loginCheckbox.checked = mw.autorun
         dockIconCheckbox.checked = mw.dockIcon
 

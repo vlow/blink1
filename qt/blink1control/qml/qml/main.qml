@@ -1,6 +1,6 @@
-import QtQuick 2.2
+import QtQuick 2.5
 import "content"
-import QtQuick.Controls 1.2
+import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.2
 import QtGraphicalEffects 1.0
 import QtQuick.Layouts 1.1
@@ -11,6 +11,7 @@ Image{
     id: mainWindow
     source: "qrc:images/layout/bg-new.jpg"
     property int editModeIndex: -1
+    property variant patternNames: mw.getPatternsNames
 
     function exitEditMode(){
         if(lista.currentIndex != -1 && lista.currentItem) {
@@ -33,12 +34,12 @@ Image{
             lista.restoreName()
             lista.currentIndex=-1
 
-            inputsList.restoreName()
+            iftttList.restoreName()
 
             inputsList2.restoreName()
             inputsList2.restorePath()
 
-            inputsList.currentIndex=-1
+            iftttList.currentIndex=-1
             inputsList2.currentIndex=-1
 
             bigButtons2.restoreName()
@@ -55,13 +56,13 @@ Image{
             var tmp=lista.currentItem.children[1].children[2].currentIndex
             if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace)
                 if(lista.currentIndex!=-1 && tmp===-1){
-                    mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
-                    mw.removePattern(inputsList.pnm[lista.currentIndex+1])
+                    mw.stopPattern( patternNames[lista.currentIndex+1])
+                    mw.removePattern( patternNames[lista.currentIndex+1])
                     lista.currentIndex=-1
                     editModeIndex=-1
                     mw.updatePatternsList()
                 }else if(tmp!=-1){
-                    mw.removeColorAndTimeFromPattern(inputsList.pnm[lista.currentIndex+1],tmp)
+                    mw.removeColorAndTimeFromPattern( patternNames[lista.currentIndex+1],tmp)
                     lista.currentItem.children[1].children[2].currentIndex=-1
                     bigButtons2.updateColors();
                 }
@@ -100,8 +101,7 @@ Image{
         Text{
             text: "Device"
             color: "white"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize:13
+            font.pixelSize:13    //font.pointSize: (!mw.mac())?10:13
             anchors.left: parent.left
             anchors.leftMargin: 50
             anchors.top: parent.top
@@ -151,7 +151,52 @@ Image{
                 anchors.centerIn: parent
             }
         }
-
+                
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+R"; onTriggered: mw.resetAlertsOption(); }
+        }
+        Button {  // surely there's a better way to do these
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+1"; onTriggered: mw.playBigButton(0); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+2"; onTriggered: mw.playBigButton(1); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+3"; onTriggered: mw.playBigButton(2); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+4"; onTriggered: mw.playBigButton(3); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+5"; onTriggered: mw.playBigButton(4); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+6"; onTriggered: mw.playBigButton(5); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+7"; onTriggered: mw.playBigButton(6); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+8"; onTriggered: mw.playBigButton(7); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+9"; onTriggered: mw.playBigButton(8); }
+        }
+        Button {
+            style: ButtonStyle { background: Rectangle { color: "transparent" } }
+            Action { shortcut: "Ctrl+0"; onTriggered: mw.playBigButton(9); }
+        }
+/*
         Button {   // this is a holder for the action which gives us Cmd-R shortcut. FIXME: easier way?
             tooltip: "Reset alerts"
             //iconSource: "qrc:images/stop.png"
@@ -174,6 +219,7 @@ Image{
                 onTriggered: mw.resetAlertsOption()
             }
         }
+*/
         Button {
             tooltip: "Open Advanced Preferences"
             //iconSource: "qrc:images/layout/select-bg-right.png"
@@ -201,20 +247,17 @@ Image{
         Text{
             text: "Status:"
             id: blinkStatuss
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13      //font.pointSize: (!mw.mac())?10:13
             anchors.left: parent.left
             anchors.leftMargin: 25
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 130
             color: "grey"
         }
-
         Text{
             id: blinkStatus
             text: mw.blink1
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13   //font.pointSize: (!mw.mac())?10:13
             anchors.left: devicePanel.left
             anchors.leftMargin: 130
             anchors.top: blinkStatuss.top
@@ -226,8 +269,7 @@ Image{
             anchors.left: blinkStatuss.left
             anchors.top: blinkStatuss.bottom
             anchors.topMargin: 13
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
             color: "grey"
         }
         Text{
@@ -236,8 +278,7 @@ Image{
             anchors.left: blinkStatus.left
             anchors.top: activePattern.top
             color: "black"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize:13
+            font.pixelSize:13  //font.pointSize: (!mw.mac())?10:13
             elide: Text.ElideMiddle
             width: 140
             MouseArea{
@@ -263,8 +304,7 @@ Image{
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 55
             color: "grey"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
         }
         TextInput{
             id: blinkidText
@@ -274,8 +314,7 @@ Image{
             selectByMouse: true
             readOnly: true
             color: "black"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
         }
 
         Text{
@@ -285,8 +324,7 @@ Image{
             anchors.top: blinkid.bottom
             anchors.topMargin: 10
             color: "grey"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
             MouseArea{
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
@@ -303,8 +341,7 @@ Image{
             selectByMouse: true
             readOnly: true
             color: "black"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
             MouseArea{
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
@@ -324,8 +361,7 @@ Image{
         Text{
             id: recentEventsTitle
             text: "Recent Events"
-            //font.pointSize: (!mw.mac())?10:13
-            font.pixelSize: 13
+            font.pixelSize: 13  //font.pointSize: (!mw.mac())?10:13
             anchors.left: parent.left
             anchors.leftMargin: 50
             anchors.top: parent.top
@@ -389,16 +425,22 @@ Image{
                         text: model.modelData.substring(model.modelData.indexOf("-")+1)
                         width: 165
                         wrapMode: Text.WordWrap    //wrapMode: Text.WrapAnywhere
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize: 12
+                        font.pixelSize: 12   //font.pointSize: (!mw.mac())?8:12
+                        onLinkActivated: {
+                            console.log("linkActivated1:"+ link);
+                            Qt.openUrlExternally(link);
+                        }
                     }
                     Text{
                         // FIXME: really?
                         text: model.modelData.substring(0,model.modelData.indexOf("-"))
                         color: "grey"
                         wrapMode: Text.WrapAnywhere
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize: 12
+                        font.pixelSize: 12  //font.pointSize: (!mw.mac())?8:12
+                        onLinkActivated: {
+                            console.log("linkActivated2:"+ link);
+                            Qt.openUrlExternally(link);
+                        }
                     }
                 }
             }
@@ -411,8 +453,7 @@ Image{
             upSrc: "qrc:images/layout/dissmiss-all-up.png"
             downSrc: "qrc:images/layout/dissmiss-all-down.png"
             label.color: "#555555"
-            //label.font.pointSize: (!mw.mac())?8:10
-            label.font.pixelSize: 10
+            label.font.pixelSize: 10    //label.font.pointSize: (!mw.mac())?8:10
             onClicked:{
                 onClicked: mw.removeAllRecentEvents()
                 exitEditMode()
@@ -456,8 +497,7 @@ Image{
             visible: tabs.current!=5
             label.text: "Add Pattern"
             label.color: "black"
-            //label.font.pointSize:  if(mw.mac()) 11; else 8;
-            label.font.pixelSize: 11
+            label.font.pixelSize: 11     //label.font.pointSize:  if(mw.mac()) 11; else 8;
             upSrc: "qrc:images/layout/btn-add2-up.png"
             downSrc: "qrc:images/layout/btn-add2-down.png"
             anchors.right: parent.right
@@ -640,8 +680,7 @@ Image{
                             }
                             selectByMouse: true
                             maximumLength: 20
-                            //font.pointSize: (!mw.mac())?8:12
-                            font.pixelSize:12
+                            font.pixelSize:12  //font.pointSize: (!mw.mac())?8:12
                             onAccepted: {
                                 ma.visible=true
                                 pname.focus=false
@@ -672,7 +711,7 @@ Image{
                                 onDoubleClicked: {
                                     if(model.modelData.isReadOnly) return;
                                     if(!editMode) return;
-                                    mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+                                    mw.stopPattern( patternNames[lista.currentIndex+1])
                                     ma.visible=false
                                     pname.focus=true
                                     pname.forceActiveFocus()
@@ -752,7 +791,7 @@ Image{
                                     onClicked: {
                                         if(model.modelData.isReadOnly) return;
                                         if(editMode) {
-                                            mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+                                            mw.stopPattern( patternNames[lista.currentIndex+1])
                                             lista.restoreName()
                                             colors.currentIndex=index
                                             mw.setLed(colors.listLeds[index])
@@ -778,7 +817,7 @@ Image{
                                 propagateComposedEvents: true
                                 onClicked: {
                                     if(model.modelData.isReadOnly) return;
-                                    mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+                                    mw.stopPattern( patternNames[lista.currentIndex+1])
                                     lista.restoreName()
                                     mw.addColorAndTimeToPattern(model.modelData.name,colorwheel1.getCurrentColor(),colorwheel1.getCurrentTime())
                                     bigButtons2.updateColors();
@@ -804,7 +843,7 @@ Image{
                                 onClicked: {
                                     if(model.modelData.isReadOnly) return;
                                     if(!editMode) return;
-                                    mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+                                    mw.stopPattern( patternNames[lista.currentIndex+1])
                                     lista.restoreName()
                                     if(mouse.button==Qt.LeftButton){
                                         mw.changePatternRepeats(model.modelData.name)
@@ -850,8 +889,7 @@ Image{
                             }
 
                             width: 13
-                            //font.pointSize: (!mw.mac())?8:12
-                            font.pixelSize:12
+                            font.pixelSize:12   //font.pointSize: (!mw.mac())?8:12
                             text: {
                                 var tmp
                                 var tmp2=+model.modelData.repeats
@@ -869,7 +907,7 @@ Image{
                                 onClicked: {
                                     if(model.modelData.isReadOnly) return;
                                     if(!editMode) return;
-                                    mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+                                    mw.stopPattern( patternNames[lista.currentIndex+1])
                                     lista.restoreName()
                                     if(mouse.button==Qt.LeftButton){
                                         mw.changePatternRepeats(model.modelData.name)
@@ -907,8 +945,8 @@ Image{
                             onReleased: parent.source="qrc:images/layout/colorpicker/ico-delete-up.png"
                             onClicked: {
                                 if(model.modelData.isReadOnly) return;
-                                mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
-                                mw.removePattern(inputsList.pnm[lista.currentIndex+1])
+                                mw.stopPattern( patternNames[lista.currentIndex+1])
+                                mw.removePattern( patternNames[lista.currentIndex+1])
                                 lista.currentIndex=-1
 
                                 editModeIndex = -1;
@@ -1007,8 +1045,7 @@ Image{
                         anchors.horizontalCenterOffset: 10
                         text: ""  // "locked"
                         color: "black"
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12  //font.pointSize: (!mw.mac())?8:12
                     }
                 }
             }
@@ -1126,8 +1163,7 @@ Image{
                             }
                             Text{
                                 text: name
-                                //font.pointSize: (!mw.mac())?10:12
-                                font.pixelSize:12
+                                font.pixelSize:12  //font.pointSize: (!mw.mac())?9:10
                                 anchors.bottom: parent.bottom
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 color: "#666666"
@@ -1165,7 +1201,7 @@ Image{
                         anchors.top: bigButtons1.bottom
                         anchors.topMargin: 15
                         height: 105
-                        width: (model.length*80)>400?400:model.length*80
+                        width: (model.length*80)>(9*80) ? (9*80): model.length*80
                         orientation: ListView.Horizontal
                         Component.onCompleted: positionViewAtEnd()
                         MouseArea{
@@ -1208,8 +1244,7 @@ Image{
                                 wrapMode: Text.WrapAnywhere
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
-                                //font.pointSize: (!mw.mac())?10:12
-                                font.pixelSize:12
+                                font.pixelSize:12     //font.pointSize: (!mw.mac())?10:12
                                 maximumLength: 12
                                 color: "#666666"
                                 selectByMouse: true
@@ -1289,7 +1324,8 @@ Image{
                                                 bigButtons2.currentIndex=index
                                                 bbti.oldName=bbti.text
                                                 bigButtonsMenu.popup()
-                                                if(mw.mac()) mw.updateBigButtons()
+                                                //mw.updateBigButtons()
+                                                //if(mw.mac()) mw.updateBigButtons()
                                             }else{
                                                 exitEditMode()
                                                 bigButtons2.currentIndex=index
@@ -1325,7 +1361,8 @@ Image{
                                                 bigButtons2.currentIndex=index
                                                 bbti.oldName=bbti.text
                                                 bigButtonsMenu.popup()
-                                                if(mw.mac()) mw.updateBigButtons()
+                                                //if(mw.mac()) mw.updateBigButtons()
+                                                //mw.updateBigButtons()
                                             }else{
                                                 exitEditMode()
                                                 bigButtons2.currentIndex=index
@@ -1361,8 +1398,7 @@ Image{
                         Text{
                             anchors.top: parent.bottom
                             anchors.topMargin: 2
-                            //font.pointSize: (!mw.mac())?10:12
-                            font.pixelSize:12
+                            font.pixelSize:12   //font.pointSize: (!mw.mac())?10:12
                             anchors.horizontalCenter: parent.horizontalCenter
                             color: "#666666"
                             text: "Add"
@@ -1418,15 +1454,13 @@ Image{
                         width: 170
                         font.bold: true
                         color: "#999999"
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12     //font.pointSize: (!mw.mac())?8:12
                     }
                     Text{
                         text: "Pattern"
                         width: 170
                         font.bold: true
                         color: "#999999"
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -1455,8 +1489,7 @@ Image{
                     }
 
                     ListView {
-                        id: inputsList
-                        property variant pnm: mw.getPatternsNames
+                        id: iftttList
                         anchors.fill: parent
                         clip: true
                         model: mw.getIFTTTList//myModel
@@ -1478,9 +1511,9 @@ Image{
                         Component{
                             id: highi
                             Rectangle{
-                                height: (inputsList.currentItem && inputsList.currentIndex!=-1)?inputsList.currentItem.height:0
-                                y: (inputsList.currentItem && inputsList.currentIndex!=-1)?inputsList.currentItem.y:0
-                                width: (inputsList.currentItem && inputsList.currentIndex!=-1)?inputsList.currentItem.width:0
+                                height: (iftttList.currentItem && iftttList.currentIndex!=-1)?iftttList.currentItem.height:0
+                                y: (iftttList.currentItem && iftttList.currentIndex!=-1)?iftttList.currentItem.y:0
+                                width: (iftttList.currentItem && iftttList.currentIndex!=-1)?iftttList.currentItem.width:0
                                 color: "#777777"
                                 opacity: 0.2
                             }
@@ -1491,7 +1524,7 @@ Image{
                         MouseArea{
                             anchors.fill: parent
                             z: -1
-                            onClicked: {exitEditMode(); inputsList.restoreName() }
+                            onClicked: {exitEditMode(); iftttList.restoreName() }
                         }
                         onContentYChanged: {
                             if(currentItem){
@@ -1503,6 +1536,8 @@ Image{
                         delegate:Item{
                             id: del
                             property bool edit: false
+                            property string patternName: model.modelData.patternName
+                            property string iftttName: model.modelData.name
                             height: {
                                 if(ti.height<25) 29
                                 else{
@@ -1515,13 +1550,13 @@ Image{
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: {
                                     exitEditMode();
-                                    inputsList.restoreName();
-                                    inputsList.currentIndex=index;
+                                    iftttList.restoreName();
+                                    iftttList.currentIndex=index;
                                     if(mouse.button==Qt.RightButton){
                                         iftttMenu.name=ti.inputname
                                         iftttMenu.popup()
-                                        inputsList.restoreName();
-                                        inputsList.currentIndex=index
+                                        iftttList.restoreName();
+                                        iftttList.currentIndex=index
                                         if(mw.mac()) mw.updateInputsList()
                                     }
                                 }
@@ -1546,8 +1581,7 @@ Image{
                                     selectByMouse: true
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12       //font.pointSize: (!mw.mac())?8:12
                                     onAccepted: {
                                         mai.visible=true
                                         focus=false
@@ -1565,14 +1599,14 @@ Image{
                                         anchors.fill: parent
                                         onClicked: {
                                             exitEditMode();
-                                            inputsList.restoreName();
-                                            inputsList.currentIndex=index
+                                            iftttList.restoreName();
+                                            iftttList.currentIndex=index
                                         }
                                         onDoubleClicked: {
                                             exitEditMode();
                                             mai.visible=false
-                                            inputsList.restoreName();
-                                            inputsList.currentIndex=index
+                                            iftttList.restoreName();
+                                            iftttList.currentIndex=index
                                             ti.focus=true
                                             ti.forceActiveFocus()
                                             ti.oldName=ti.text
@@ -1589,56 +1623,16 @@ Image{
                                         color: "transparent"
                                     }
                                 }
-                                Text{
-                                    elide: Text.ElideMiddle
-                                    id: pName
-                                    height: 29
+                                ComboBox {
+                                    id: cbIftttPatternName
                                     width: 100
-                                    text: if(model.modelData.patternName==="") "no pattern chosen"; else model.modelData.patternName
-                                    font.underline: (model.modelData.patternName==="")?true:false
-                                    color: (model.modelData.patternName==="")?"#777777":"black"
-                                    //font.pointSize: if(mw.mac()) 11; else 8;
-                                    font.pixelSize: 11;
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.verticalCenterOffset: 2
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma2
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        width: parent.width+20
-                                        height: parent.height
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList.restoreName();
-                                            inputsList.currentIndex=index
-
-                                            comboPattern.visible=true
-                                            comboPattern.x=tabs.parent.x+tabs.x+pattlist.x+inputsList.x+pName.x+20
-                                            comboPattern.y=tabs.parent.y+tabs.y+pattlist.y+tableTitle.y+inputsList.y+pName.parent.y+inputsList.currentItem.y-inputsList.contentY+pName.y-1+10
-                                            for(var i=0;i<inputsList.pnm.length;i++)
-                                                if(inputsList.pnm[i]===pName.text){
-                                                    comboPattern.curIn=i;
-                                                    break;
-                                                }
-                                            comboPattern.inputName=ti.inputname
-                                        }
-
-                                    }
-                                    Image{
-                                        height: 29
-                                        source: "qrc:images/layout/colorpicker/select-130-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -10
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -7
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    anchors.verticalCenterOffset: -5
+                                    style: ComboBoxStyle { font.pixelSize: 11 } // pointSize: (!mw.mac())?8:11 }
+                                    model: patternNames
+                                    currentIndex: patternNames.indexOf( patternName )
+                                    onActivated: {  // triggered when user changes combobox, sets 'index', not 'currentIndex'
+                                        mw.setPatternNameToInput( iftttName, patternNames[index] )
                                     }
                                 }
                                 Item{
@@ -1652,8 +1646,7 @@ Image{
                                     height: 25
                                     width: 130
                                     text: model.modelData.time
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12    //font.pointSize: (!mw.mac())?8:12
                                 }
                                 Text{
                                     id: lSource
@@ -1662,21 +1655,20 @@ Image{
                                     height: 25
                                     width: 160
                                     text: model.modelData.arg2
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12   //font.pointSize: (!mw.mac())?8:12
                                 }
 
                                 PushButton{
                                     label.text: ""
-                                    visible: inputsList.currentIndex==index
+                                    visible: iftttList.currentIndex==index
                                     upSrc: "qrc:images/layout/colorpicker/ico-delete-up.png"
                                     downSrc: "qrc:images/layout/colorpicker/ico-delete-down.png"
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
                                     onClicked: {
                                         exitEditMode();
-                                        inputsList.restoreName();
-                                        inputsList.currentIndex=-1
+                                        iftttList.restoreName();
+                                        iftttList.currentIndex=-1
                                         mw.removeInput(model.modelData.name,true)
                                     }
                                 }
@@ -1702,8 +1694,8 @@ Image{
                     onClicked: {
                         exitEditMode();
                         mw.createNewIFTTTInput()
-                        inputsList.restoreName();
-                        inputsList.currentIndex=-1
+                        iftttList.restoreName();
+                        iftttList.currentIndex=-1
                     }
                 }
                 //// KONIEC INPUTS LIST
@@ -1745,15 +1737,13 @@ Image{
                         text: "Name"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12                         //font.pointSize: (!mw.mac())?8:12
                     }
                     Text{
                         width: 70
                         text: "Type"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -1761,7 +1751,6 @@ Image{
                         text: "Path"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -1769,7 +1758,6 @@ Image{
                         text: "Last val"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -1777,7 +1765,6 @@ Image{
                         text: "Frequency"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                 }
@@ -1792,7 +1779,6 @@ Image{
                     }
                     ListView {
                         id: inputsList2
-                        property variant pnm: mw.getPatternsNames
                         anchors.fill: parent
                         clip: true
                         model: mw.getInputsList
@@ -1850,6 +1836,10 @@ Image{
                             id: del2
                             property bool edit:false
                             property bool edit2:false
+                            property string inputName: model.modelData.name
+                            property string inputType: model.modelData.type
+                            property string inputFreq: model.modelData.freq
+                            
                             height:  {
                                 if(lpath.height<25 && ti2.height<25) 29
                                 else{
@@ -1898,7 +1888,7 @@ Image{
                                     text: model.modelData.name
                                     selectByMouse: true
                                     clip: true
-                                    font.pointSize: (!mw.mac())?8:12
+                                    font.pixelSize: 12  // font.pointSize: (!mw.mac())?8:12
                                     onAccepted: {
                                         mai2.visible=true
                                         focus=false
@@ -1940,50 +1930,26 @@ Image{
                                         color: "transparent"
                                     }
                                 }
-                                Text{
-                                    id: pName2
+                                ComboBox {
+                                    id: cbInputType
                                     width: 68
-                                    text: model.modelData.type
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
-                                    MouseArea {
-                                        id: ma22
-                                        cursorShape: Qt.PointingHandCursor
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2.restoreName();
-                                            inputsList2.restorePath();
-                                            inputsList2.currentIndex=index
-
-                                            comboPattern2.visible=true
-                                            comboPattern2.x=tabs.parent.x+tabs.x+toolslist.x+inputsList2.x+pName2.x+25
-                                            comboPattern2.y=tabs.parent.y+tabs.y+toolslist.y+tableTitle2.y+inputsList2.y+pName2.parent.y+inputsList2.currentItem.y-inputsList2.contentY+pName2.y+60
-                                            for(var i=0;i<comboPattern2.items.count;i++){
-                                                if(comboPattern2.items.get(i).name===pName2.text){
-                                                    comboPattern2.curIn=i;
-                                                    break;
-                                                }
-                                            }
-                                            comboPattern2.inputName=ti2.inputname
-                                        }
+                                    style: ComboBoxStyle { font.pixelSize: 11 } // pointSize: (!mw.mac())?8:11 }
+                                    model:  ListModel {
+                                        id: cbinputtypes
+                                        ListElement { text: "file" }
+                                        ListElement { text: "url" }
+                                        ListElement { text: "script" }
+                                        ListElement { text: "none" }
                                     }
-                                    Image{
-                                        height: 24
-                                        source: "qrc:images/layout/colorpicker/select-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -7
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -5
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    currentIndex: { 
+                                        var t = find( inputType );
+                                        if ( t== -1 ) t = 4;  // none
+                                        return t;
+                                    }
+                                    onActivated: {  // triggered when user changes combobox, sets index
+                                        mw.updateInputsType( inputName, textAt(index) )
                                     }
                                 }
 
@@ -1997,7 +1963,7 @@ Image{
                                     clip: true
                                     wrapMode: TextInput.WrapAnywhere
                                     text: cutPath(wholepath)
-                                    font.pointSize: (!mw.mac())?8:12
+                                    font.pixelSize: 12  // font.pointSize: (!mw.mac())?8:12
                                     onAccepted: {
                                         map.visible=true
                                         lpath.focus=false
@@ -2026,13 +1992,13 @@ Image{
                                             inputsList2.restoreName();
                                             inputsList2.restorePath();
                                             inputsList2.currentIndex=index
-                                            if(pName2.text=="file" || pName2.text=="script"){
+                                            if( cbInputType.currentText=="file" || cbInputType.currentText=="script"){
                                                 lpath.oldPath=lpath.wholepath
-                                                lpath.text=mw.selectFile(ti2.inputname)
+                                                lpath.text = mw.selectFile( inputName )
                                                 if(lpath.text.length>=1){
                                                     lpath.wholepath=lpath.text
                                                     lpath.text=cutPath(lpath.text)
-                                                    mw.updateInputsArg1(ti2.inputname,lpath.wholepath)
+                                                    mw.updateInputsArg1( inputName, lpath.wholepath)
                                                 }else{
                                                     lpath.text=cutPath(lpath.oldPath)
                                                 }
@@ -2074,62 +2040,33 @@ Image{
                                     height: 25
                                     width: 133
                                     text: model.modelData.arg2
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12    //font.pointSize: (!mw.mac())?8:12
                                 }
 
-                                Text{
-                                    id: pFreq
+                                ComboBox {
+                                    id: cbInputFreq
+                                    width: 68
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    width: 70
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
-                                    text: {
-                                        var tmp=model.modelData.freq
-                                        if(tmp==1) "5 sec";
-                                        else if(tmp==3) "15 sec";
-                                        else if(tmp==6) "30 sec";
-                                        else if(tmp==12) "1 min";
-                                        else if(tmp==60) "5 min";
-                                        else ""
+                                    style: ComboBoxStyle { font.pixelSize:12 } //pointSize: (!mw.mac())?8:11 }
+                                    model:  ListModel {
+                                        id: cbinputfreqs
+                                        ListElement { text: "5 sec";  freqval: 1; }
+                                        ListElement { text: "15 sec"; freqval: 3; }
+                                        ListElement { text: "30 sec"; freqval: 6; }
+                                        ListElement { text: "1 min";  freqval: 12; }
+                                        ListElement { text: "5 min";  freqval: 60; }
                                     }
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma222
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2.restoreName();
-                                            inputsList2.restorePath();
-                                            inputsList2.currentIndex=index
-
-                                            comboFreq.visible=true
-                                            comboFreq.x=tabs.parent.x+tabs.x+toolslist.x+inputsList2.x+pFreq.x+25
-                                            comboFreq.y=tabs.parent.y+tabs.y+toolslist.y+tableTitle2.y+inputsList2.y+pFreq.parent.y+inputsList2.currentItem.y-inputsList2.contentY+pFreq.y+40
-                                            for(var i=0;i<comboFreq.items.count;i++){
-                                                if(comboFreq.items.get(i).name===pFreq.text){
-                                                    comboFreq.curIn=i;
-                                                    break;
-                                                }
-                                            }
-                                            comboFreq.inputName=ti2.inputname
+                                    currentIndex: {  // FIXME: is there a smarter way to do this?
+                                        for( var i=0; i< cbinputfreqs.count; i++ ) {
+                                          if( cbinputfreqs.get(i).freqval == inputFreq ) {
+                                            return i;
+                                          }
                                         }
+                                        return 2;  // default
                                     }
-                                    Image{
-                                        height: 24
-                                        source: "qrc:images/layout/colorpicker/select-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -7
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -5
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    onActivated: {  // triggered when user changes combobox, sets index
+                                        mw.setFreqToInput( inputName, index) // FIXME: everything about freqs is bad
                                     }
                                 }
                                 Item{
@@ -2207,7 +2144,6 @@ Image{
                     }
                 }
 
-                ///INPUTS LIST
                 Row{
                     id: tableTitle2M
                     spacing: 25
@@ -2222,15 +2158,13 @@ Image{
                         text: "Name"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12     //font.pointSize: (!mw.mac())?8:12
                     }
                     Text{
                         width: 145
                         text: "Mail Account"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -2238,7 +2172,6 @@ Image{
                         text: "Refresh rate"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -2246,7 +2179,6 @@ Image{
                         text: "Pattern"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                     Text{
@@ -2254,7 +2186,6 @@ Image{
                         text: "Last status"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
                         font.pixelSize:12
                     }
                 }
@@ -2270,9 +2201,8 @@ Image{
                     ListView {
                         id: inputsList2M
                         z: 100
-                        property variant pnm: mw.getPatternsNames
                         clip: true
-                        model: mw.getMailsList//mw.getInputsList//myModel
+                        model: mw.getMailsList  //mw.getInputsList//myModel
                         currentIndex: -1
                         spacing: 3
 
@@ -2304,15 +2234,16 @@ Image{
                             id: del2M
                             property bool edit:false
                             property bool edit2:false
-                            height:  {
+                            property string patternName: model.modelData.patternName
+                            property string mailName: model.modelData.name
+                            property string mailFreq: model.modelData.freq  // this seems like a dumb way to do this
+
+                            height: 29 /* {
                                 if(ti2M.height<25 && mailaccount.height<25) 29
                                 else{
-                                    if(ti2M.height>mailaccount.height)
-                                        ti2M.height+7
-                                    else
-                                        mailaccount.height+7
+                                    if(ti2M.height>mailaccount.height)  ti2M.height+7; else mailaccount.height+7
                                 }
-                            }
+                            }*/
 
                             width: 800
                             MouseArea{
@@ -2331,9 +2262,9 @@ Image{
                                 onDoubleClicked: {
                                     //todpopup.visible=true;
                                     if(mailpopup.visible) return;
-                                    mailpopup.oldname=model.modelData.name
+                                    mailpopup.oldname = model.modelData.name
                                     mw.markEmailEditing(model.modelData.name,true)
-                                    mailpopup.editData(model.modelData.name,model.modelData.type,model.modelData.server,model.modelData.login,model.modelData.passwd,model.modelData.port,model.modelData.ssl,model.modelData.result,model.modelData.parser)
+                                    mailpopup.editData(model.modelData.name, model.modelData.serverType, model.modelData.server, model.modelData.username, model.modelData.passwd, model.modelData.port, model.modelData.ssl, model.modelData.searchType, model.modelData.searchString)
                                     mailpopup.visible=true
                                 }
                             }
@@ -2345,6 +2276,7 @@ Image{
                                 anchors.topMargin: 5
                                 anchors.left: parent.left
                                 anchors.leftMargin: 15
+                                
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
@@ -2354,8 +2286,7 @@ Image{
                                     width: 133
                                     text: model.modelData.name
                                     clip: true
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12   //font.pointSize: (!mw.mac())?8:12
                                 }
                                 Text{
                                     id: mailaccount
@@ -2363,118 +2294,48 @@ Image{
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
                                     width: 150
-                                    text: model.modelData.email
-                                    //font.pointSize: (!mw.mac())?8:12
+                                    text: model.modelData.username
                                     font.pixelSize:12
                                 }
-                                Text{
-                                    id: pFreqM
+                                ComboBox {
+                                    id: cbMailFreq // pFreqM
+                                    width: 70
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    width: 70
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
-                                    text: {
-                                        var tmp=model.modelData.freq
-                                        if(tmp===12) "1 min";
-                                        else if(tmp===60) "5 min";
-                                        else if(tmp===180) "15 min";
-                                        else if(tmp===360) "30 min";
-                                        else if(tmp===720) "1 hour";
-                                        else ""
+                                    style: ComboBoxStyle { font.pixelSize:12 } //font.pointSize: (!mw.mac())?8:11 }
+                                    model: ListModel {
+                                        id: cbmailfreqs
+                                        ListElement { text: "1 min";  freqval: 12 } // FIXME: wat
+                                        ListElement { text: "5 min";  freqval: 60 }
+                                        ListElement { text: "15 min"; freqval: 180 }
+                                        ListElement { text: "30 min"; freqval: 360 }
+                                        ListElement { text: "1 hour"; freqval: 720 }
                                     }
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma222M
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2M.currentIndex=index
-
-                                            comboFreqM.visible=true
-                                            comboFreqM.x=tabs.parent.x+tabs.x+maillist.x+inputsList2M.x+pFreqM.x+25
-                                            comboFreqM.y=tabs.parent.y+tabs.y+maillist.y+tableTitle2M.y+inputsList2M.y+pFreqM.parent.y+inputsList2M.currentItem.y-inputsList2M.contentY+2+45
-                                            for(var i=0;i<comboFreqM.items.count;i++){
-                                                if(comboFreqM.items.get(i).name===pFreqM.text){
-                                                    comboFreqM.curIn=i;
-                                                    break;
-                                                }
-                                            }
-                                            comboFreqM.inputName=ti2M.inputname
+                                    currentIndex: {  // this seems like such a hack
+                                        for( var i=0; i< cbmailfreqs.count; i++ ) {
+                                          if( cbmailfreqs.get(i).freqval == mailFreq ) {
+                                            return i;
+                                          }
                                         }
+                                        return 3;
                                     }
-                                    Image{
-                                        height: 24
-                                        source: "qrc:images/layout/colorpicker/select-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -7
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -5
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    onActivated: {
+                                        mw.setFreqToEmail( mailName, cbmailfreqs.get(index).freqval )
                                     }
                                 }
-                                Text{
-                                    id: pNameM
-                                    elide: Text.ElideMiddle
-                                    height: 29
+                                ComboBox {
+                                    id: cbMailPatternName // pNameM
                                     width: 100
-                                    text: if(model.modelData.patternName==="") "no pattern chosen"; else model.modelData.patternName
-                                    font.underline: (model.modelData.patternName==="")?true:false
-                                    color: (model.modelData.patternName==="")?"#777777":"black"
-                                    //font.pointSize: if(mw.mac()) 11; else 8;
-                                    font.pixelSize:11
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.verticalCenterOffset: 2
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma2M
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        width: parent.width+20
-                                        height: parent.height
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2M.currentIndex=index
-
-                                            comboPatternM.visible=true
-                                            comboPatternM.x=tabs.parent.x+tabs.x+maillist.x+inputsList2M.x+pNameM.x+20
-                                            comboPatternM.y=tabs.parent.y+tabs.y+maillist.y+tableTitle2M.y+inputsList2M.y+pNameM.parent.y+inputsList2M.currentItem.y-inputsList2M.contentY+pNameM.y-1+20
-                                            for(var i=0;i<inputsList2M.pnm.length;i++)
-                                                if(inputsList2M.pnm[i]===pNameM.text){
-                                                    comboPatternM.curIn=i;
-                                                    break;
-                                                }
-                                            comboPatternM.inputName=ti2M.inputname
-                                        }
-
-                                    }
-                                    Image{
-                                        height: 29
-                                        source: "qrc:images/layout/colorpicker/select-130-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -10
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -7
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    anchors.verticalCenterOffset: -5
+                                    style: ComboBoxStyle { font.pixelSize:12 } //pointSize: (!mw.mac())?8:11 }
+                                    model: patternNames //inputsList2M.pnm
+                                    currentIndex: patternNames.indexOf( patternName) //inputsList2M.pnm.indexOf( patternName )
+                                    onActivated: {  // triggered when user changes combobox, sets index
+                                        mw.setPatternNameToEmail( mailName, patternNames[index] ) //inputsList2M.pnm[index] )
                                     }
                                 }
-                                Item{
-                                    height: 1
-                                    width: 1
-                                }
-
+                                                                                               
                                 Text{
                                     id: llastvalM
                                     anchors.verticalCenter: parent.verticalCenter
@@ -2484,8 +2345,7 @@ Image{
                                     text: model.modelData.value
                                     color: (text==="CONNECTION ERROR")? "#c80b0b": "black"
                                     font.underline: (model.modelData.getErrorsList.length>0)? true: false
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:11      //font.pointSize: (!mw.mac())?8:12
                                     MouseArea{
                                         anchors.fill: parent
                                         cursorShape: (model.modelData.getErrorsList.length>0)?Qt.PointingHandCursor:Qt.ArrowCursor
@@ -2569,7 +2429,6 @@ Image{
                     }
                 }
 
-                ///INPUTS LIST
                 Row{
                     id: tableTitle2H
                     spacing: 25
@@ -2584,40 +2443,35 @@ Image{
                         text: "Name"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12  //font.pointSize: (!mw.mac())?8:12
                     }
                     Text{
                         width: 95
                         text: "Type"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12 
                     }
                     Text{
                         width: 125
                         text: "Refresh rate"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12 
                     }
                     Text{
                         width: 155
                         text: "Pattern"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12 
                     }
                     Text{
                         width: 133
                         text: "Last status"
                         color: "#999999"
                         font.bold: true
-                        //font.pointSize: (!mw.mac())?8:12
-                        font.pixelSize:12
+                        font.pixelSize:12 
                     }
                 }
                 ScrollView {
@@ -2632,7 +2486,6 @@ Image{
                     ListView {
                         id: inputsList2H
                         z: 100
-                        property variant pnm: mw.getPatternsNames
                         clip: true
                         model: mw.getHardwareList//mw.getInputsList//myModel
                         currentIndex: -1
@@ -2666,6 +2519,14 @@ Image{
                             id: del2H
                             property bool edit:false
                             property bool edit2:false
+                            property string patternName:model.modelData.patternName
+                            property string hardwareName:model.modelData.name
+                            property string hardwareType: model.modelData.type
+                            property string hardwareFreq: model.modelData.freq
+                            property string hardwareRole: model.modelData.role  // FIXME: ????
+                            property string hardwareAction: model.modelData.action // FIXME:
+                            property string hardwareLvl: model.modelData.lvl  // FIXME: ???
+                            
                             height:  {
                                 29
                             }
@@ -2687,7 +2548,7 @@ Image{
                                 onDoubleClicked: {
                                     if(hardwarepopup.visible) return;
                                     mw.markHardwareEditing(model.modelData.name,true)
-                                    hardwarepopup.oldname=model.modelData.name
+                                    hardwarepopup.oldname = model.modelData.name
                                     hardwarepopup.editData(model.modelData.name,model.modelData.type,model.modelData.role,model.modelData.action,model.modelData.lvl)
                                     hardwarepopup.visible=true
                                 }
@@ -2709,134 +2570,78 @@ Image{
                                     width: 133
                                     text: model.modelData.name
                                     clip: true
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12  //font.pointSize: (!mw.mac())?8:12
                                 }
-                                Text{
-                                    id: typeHardware
-                                    wrapMode: TextInput.WrapAnywhere
+                                ComboBox {
+                                    id: cbHardwareType
+                                    width: 90
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    width: 100
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
-                                    text: {
-                                        var tmp=model.modelData.type
-                                        if(tmp===0){
-                                            "Battery"
-                                        }else if(tmp===1){
-                                            "CPU"
-                                        }else if(tmp===2){
-                                            "RAM"
+                                    style: ComboBoxStyle { font.pixelSize:12 }
+                                    model: ListModel {
+                                        id: cbhardwaretypes
+                                        ListElement { text: "Battery"; typeval:0; }
+                                        ListElement { text: "CPU";     typeval:1; }
+                                        ListElement { text: "RAM";     typeval:2; }
+                                    }
+                                    currentIndex: { 
+                                        for( var i=0; i< cbhardwaretypes.count; i++ ) {
+                                          if( cbhardwaretypes.get(i).typeval == hardwareType ) {
+                                            return i;
+                                          }
                                         }
+                                        return 1;  // default
+                                    }
+                                    onActivated: {  // triggered when user changes combobox, sets index
+                                        var newType = cbhardwaretypes.get( index ).typeval
+                                        //mw.updateInputsType( inputName, textAt(index) )
+                                        mw.markHardwareEditing( hardwareName, true)
+                                        hardwarepopup.oldname = hardwareName
+                                        hardwarepopup.editData( hardwareName, newType, hardwareRole, hardwareAction, hardwareLvl)
+                                        hardwarepopup.visible=true
                                     }
                                 }
-                                Text{
-                                    id: pFreqH
+                                ComboBox {
+                                    id: cbHardwareFreq
+                                    width: 68
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.verticalCenterOffset: -5
-                                    width: 70
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
-                                    text: {
-                                        var tmp=model.modelData.freq
-                                        if(tmp===12) "1 min";
-                                        else if(tmp===60) "5 min";
-                                        else if(tmp===180) "15 min";
-                                        else if(tmp===360) "30 min";
-                                        else if(tmp===720) "1 hour";
-                                        else ""
+                                    style: ComboBoxStyle { font.pixelSize:12 } //pointSize: (!mw.mac())?8:11 }
+                                    model:  ListModel {
+                                        id: cbhardwarefreqs
+                                        ListElement { text: "1 min";  freqval: 12; }
+                                        ListElement { text: "5 min";  freqval: 60; }
+                                        ListElement { text: "15 min"; freqval: 180; }
+                                        ListElement { text: "30 min"; freqval: 360; }
+                                        ListElement { text: "1 hour"; freqval: 720; }
                                     }
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma222H
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2H.currentIndex=index
-
-                                            comboFreqH.visible=true
-                                            comboFreqH.x=tabs.parent.x+tabs.x+hardwarelist.x+inputsList2H.x+pFreqH.x+25
-                                            comboFreqH.y=tabs.parent.y+tabs.y+hardwarelist.y+tableTitle2H.y+inputsList2H.y+pFreqH.parent.y+inputsList2H.currentItem.y-inputsList2H.contentY+pFreqH.y+pFreqH.y-2+45
-                                            for(var i=0;i<comboFreqH.items.count;i++){
-                                                if(comboFreqH.items.get(i).name===pFreqH.text){
-                                                    comboFreqH.curIn=i;
-                                                    break;
-                                                }
-                                            }
-                                            comboFreqH.inputName=ti2H.inputname
+                                    currentIndex: {  // FIXME: is there a smarter way to do this?
+                                        for( var i=0; i< cbhardwarefreqs.count; i++ ) {
+                                          if( cbhardwarefreqs.get(i).freqval == hardwareFreq ) {
+                                            return i;
+                                          }
                                         }
+                                        return 2;  // default
                                     }
-                                    Image{
-                                        height: 24
-                                        source: "qrc:images/layout/colorpicker/select-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -7
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -5
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    onActivated: {  // triggered when user changes combobox, sets index
+                                        mw.setFreqToInput( inputName, index) // FIXME: everything about freqs is bad
                                     }
                                 }
                                 Item{
                                     height: 1
                                     width: 30
                                 }
-
-                                Text{
-                                    id: pNameH
-                                    elide: Text.ElideMiddle
-                                    height: 29
+                                ComboBox {
+                                    id: cbHardwarePatternName
                                     width: 100
-                                    text: if(model.modelData.patternName==="") "no pattern chosen"; else model.modelData.patternName
-                                    font.underline: (model.modelData.patternName==="")?true:false
-                                    color: (model.modelData.patternName==="")?"#777777":"black"
-                                    //font.pointSize: if(mw.mac()) 11; else 8;
-                                    font.pixelSize:11
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.verticalCenterOffset: 2
-                                    MouseArea {
-                                        cursorShape: Qt.PointingHandCursor
-                                        id: ma2H
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        width: parent.width+20
-                                        height: parent.height
-                                        onClicked: {
-                                            exitEditMode();
-                                            inputsList2H.currentIndex=index
-
-                                            comboPatternH.visible=true
-                                            comboPatternH.x=tabs.parent.x+tabs.x+hardwarelist.x+inputsList2H.x+pNameH.x+20
-                                            comboPatternH.y=tabs.parent.y+tabs.y+hardwarelist.y+tableTitle2H.y+inputsList2H.y+pNameH.parent.y+inputsList2H.currentItem.y-inputsList2H.contentY+pNameH.y-1+25
-                                            for(var i=0;i<inputsList2H.pnm.length;i++)
-                                                if(inputsList2H.pnm[i]===pNameH.text){
-                                                    comboPatternH.curIn=i;
-                                                    break;
-                                                }
-                                            comboPatternH.inputName=ti2H.inputname
-                                        }
-
-                                    }
-                                    Image{
-                                        height: 29
-                                        source: "qrc:images/layout/colorpicker/select-130-bg.png"
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: -10
-                                        anchors.top: parent.top
-                                        anchors.topMargin: -7
-                                        z: parent.z-1
-                                        Image{
-                                            source: "qrc:images/layout/colorpicker/arrow-2-up.png"
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 5
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
+                                    anchors.verticalCenterOffset: -5
+                                    style: ComboBoxStyle { font.pixelSize: 11 } // pointSize: (!mw.mac())?8:11 }
+                                    model: patternNames
+                                    currentIndex: patternNames.indexOf( patternName )
+                                    onActivated: {  // triggered when user changes combobox, sets 'index', not 'currentIndex'
+                                        //mw.setPatternNameToInput( hardwareName, patternNames[index] )
+                                        mw.setPatternNameToHardwareMonitor( hardwareName, patternNames[index] )
                                     }
                                 }
                                 Item{
@@ -2853,8 +2658,7 @@ Image{
                                     text: model.modelData.status
                                     color: (model.modelData.done && model.modelData.status!="checking..." && model.modelData.status!="NO VALUE")? "#c80b0b": "black"
                                     font.bold: (model.modelData.done && model.modelData.status!="checking..." && model.modelData.status!="NO VALUE")
-                                    //font.pointSize: (!mw.mac())?8:12
-                                    font.pixelSize:12
+                                    font.pixelSize:12     //font.pointSize: (!mw.mac())?8:12
                                     MouseArea{
                                         anchors.fill: parent
                                         onClicked: {
@@ -2973,7 +2777,7 @@ Image{
         MenuItem {
             text: "Set to current pattern"
             onTriggered: {
-                if(lista.currentIndex!=-1) mw.updateBigButtonPatternName(bigButtons2.currentIndex,inputsList.pnm[lista.currentIndex+1])
+                if(lista.currentIndex!=-1) mw.updateBigButtonPatternName(bigButtons2.currentIndex,patternNames[lista.currentIndex+1])
                 else if(mw.getActivePatternName()!="") mw.updateBigButtonPatternName(bigButtons2.currentIndex,mw.getActivePatternName())
                 else
                     mw.updateBigButtonColor(bigButtons2.currentIndex, colorwheel1.getCurrentColor());
@@ -2989,6 +2793,12 @@ Image{
             text: "Delete button"
             onTriggered: {
                 mw.removeBigButton2(bigButtons2.currentIndex)
+            }
+        }
+        MenuItem {
+            text: "Move to 1st place"
+            onTriggered: {
+                mw.moveBigButton2(bigButtons2.currentIndex, 0)
             }
         }
     }
@@ -3014,7 +2824,7 @@ Image{
         property string name: ""
         MenuItem {
             text: "Delete ifttt tool"
-            onTriggered: {  inputsList.currentIndex=-1; mw.removeInput(iftttMenu.name);}
+            onTriggered: {  iftttList.currentIndex=-1; mw.removeInput(iftttMenu.name);}
         }
     }
     Menu {
@@ -3058,50 +2868,50 @@ Image{
         MenuItem {
             text: "inf"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],-1)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],-1)
             }
 
         }
         MenuItem {
             text: "0"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],0)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],0)
             }
         }
         MenuItem {
             text: "x1"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],1)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],1)
             }
         }
         MenuItem {
             text: "x2"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],2)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],2)
             }
         }
         MenuItem {
             text: "x3"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],3)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],3)
             }
         }
         MenuItem {
             text: "x4"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],4)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],4)
             }
         }
         MenuItem {
             text: "x5"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],5)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],5)
             }
         }
         MenuItem {
             text: "x6"
             onTriggered: {
-                mw.changePatternRepeatsTo(inputsList.pnm[lista.currentIndex+1],6)
+                mw.changePatternRepeatsTo( patternNames[lista.currentIndex+1],6)
             }
         }
     }
@@ -3168,7 +2978,7 @@ Image{
                 {
                     var colorName =  getCurrentColor();
                     var time = getCurrentTime();
-                    mw.editColorAndTimeInPattern(inputsList.pnm[lista.currentIndex+1], colorName, time, indexOfColorPattern);//lista.currentItem.color.currentIndex);
+                    mw.editColorAndTimeInPattern( patternNames[lista.currentIndex+1], colorName, time, indexOfColorPattern);//lista.currentItem.color.currentIndex);
                     lista.currentItem.children[1].children[2].currentIndex = indexOfColorPattern;
                     bigButtons2.updateColors();
                 }
@@ -3178,7 +2988,7 @@ Image{
                 {
                     var colorName =  getCurrentColor();
                     var time = getCurrentTime();
-                    mw.editColorAndTimeInPattern(inputsList.pnm[lista.currentIndex+1], colorName, time, indexOfColorPattern);
+                    mw.editColorAndTimeInPattern( patternNames[lista.currentIndex+1], colorName, time, indexOfColorPattern);
                     lista.currentItem.children[1].children[2].currentIndex = indexOfColorPattern;
                 }
             }
@@ -3252,7 +3062,7 @@ Image{
                     onClicked: {
                         mw.led=index
                         if(colorwheel1.editMode && colorwheel1.indexOfColorPattern != -1){
-                            mw.setLedToPattern(inputsList.pnm[lista.currentIndex+1],colorwheel1.indexOfColorPattern,index)
+                            mw.setLedToPattern( patternNames[lista.currentIndex+1],colorwheel1.indexOfColorPattern,index)
                         }
                     }
                 }
@@ -3262,8 +3072,7 @@ Image{
                     anchors.top: parent.top
                     anchors.topMargin: 10
                     text: name
-                    //font.pointSize: (!mw.mac())?8:11
-                    font.pixelSize:11
+                    font.pixelSize:11   //font.pointSize: (!mw.mac())?8:11
                     color: "#555555"
                     verticalAlignment: Qt.AlignCenter
                 }
@@ -3305,14 +3114,7 @@ Image{
     }
 
     //popups
-/*
-    MailPopupTod{
-        x: 400 //parent.x+parent.width/2-400
-        y: 200 //parent.y+50
-        id: todpopup
-        visible: false
-    }
-*/
+
     MailPopup{
         x: parent.x+parent.width/2-200
         y: parent.y+50
@@ -3351,207 +3153,8 @@ Image{
             anchors.fill: parent
             onClicked: {
                 parent.visible=false
-                comboPatternM.hide()
-                comboFreqM.hide()
-                comboPatternH.hide()
-                comboFreqH.hide()
-                comboFreq.hide()
-                comboPattern2.hide()
-                comboPattern.hide()
             }
         }
-    }
-
-    //comboboxes
-
-    ComboBox1{
-        id: comboPatternM
-        width: 145
-        items: inputsList.pnm
-        z: background.z+1000
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick: {
-            mw.setPatternNameToEmail(comboPatternM.inputName,txt)
-        }
-        onHiden: background.visible=false
-    }
-    ComboBox1{
-        id: comboFreqM
-        width: 100
-        items: timeM
-        z: background.z+1000
-        visible: false
-        ListModel{
-            id: timeM
-            ListElement{
-                name: "1 min"
-            }
-            ListElement{
-                name: "5 min"
-            }
-            ListElement{
-                name: "15 min"
-            }
-            ListElement{
-                name: "30 min"
-            }
-            ListElement{
-                name: "1 hour"
-            }
-        }
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick2: {
-            mw.setFreqToEmail(comboFreqM.inputName,idx)
-        }
-        onHiden: background.visible=false
-    }
-
-    ComboBox1{
-        id: comboPatternH
-        width: 145
-        items: inputsList.pnm
-        z: background.z+1000
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick: {
-            mw.setPatternNameToHardwareMonitor(comboPatternH.inputName,txt)
-        }
-        onHiden: background.visible=false
-    }
-    ComboBox1{
-        id: comboFreqH
-        width: 100
-        items: timeH
-        z: background.z+1000
-        visible: false
-        ListModel{
-            id: timeH
-            ListElement{
-                name: "1 min"
-            }
-            ListElement{
-                name: "5 min"
-            }
-            ListElement{
-                name: "15 min"
-            }
-            ListElement{
-                name: "30 min"
-            }
-            ListElement{
-                name: "1 hour"
-            }
-        }
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick2: {
-            mw.setFreqToHardwareMonitor(comboFreqH.inputName,idx)
-        }
-        onHiden: background.visible=false
-    }
-
-    ComboBox1{
-        id: comboFreq
-        width: 100
-        items: time
-        z: background.z+1000
-        visible: false
-        ListModel{
-            id: time
-            ListElement{
-                name: "5 sec"
-            }
-            ListElement{
-                name: "15 sec"
-            }
-            ListElement{
-                name: "30 sec"
-            }
-            ListElement{
-                name: "1 min"
-            }
-            ListElement{
-                name: "5 min"
-            }
-        }
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick2: {
-            mw.setFreqToInput(comboFreq.inputName,idx)
-        }
-        onHiden: background.visible=false
-    }
-    ComboBox1{
-        id: comboPattern2
-        width: 100
-        items: types
-        z: background.z+1000
-        visible: false
-        ListModel{
-            id: types
-            ListElement{
-                name: "file"
-            }
-            ListElement{
-                name: "script"
-            }
-            ListElement{
-                name: "url"
-            }
-            ListElement{
-                name: "none"
-            }
-        }
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick: {
-            mw.updateInputsType(comboPattern2.inputName,txt)
-        }
-        onHiden: background.visible=false
-    }
-    ComboBox1{
-        id: comboPattern
-        width: 145
-        items: inputsList.pnm
-        z: background.z+1000
-        visible: false
-
-        onVisibleChanged: {
-            if(visible){
-                background.visible=true
-            }
-        }
-
-        onClick: {
-            mw.updateInputsPatternName(comboPattern.inputName,txt)
-        }
-        onHiden: background.visible=false
     }
 
     Rectangle{
@@ -3582,7 +3185,7 @@ Image{
             background2.visible=false
         }
         onEditPattern: {
-            mw.stopPattern(inputsList.pnm[lista.currentIndex+1])
+            mw.stopPattern( patternNames[lista.currentIndex+1])
             lista.currentItem.editMode=true
             editModeIndex = lista.currentIndex
         }

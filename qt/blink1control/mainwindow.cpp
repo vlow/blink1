@@ -16,20 +16,26 @@
 
 #include <QClipboard>
 
+#include <QMessageBox>
+
+#include "osxFixes-c.h"
+
 // FIXME: this must be set to 5000 because of hard-coded values in QML by marcin/milo
 #define updateInputsMillis 5000
 
+// set to true to honor menu item mnemonics on OS X
 // see: http://qt-project.org/doc/qt-5/exportedfunctions.html
 //#ifdef Q_...
 void qt_set_sequence_auto_mnemonic(bool);
 //#endif 
 
+// allows us to set a OS X Dock menu
 // see: http://stackoverflow.com/questions/9334339/qt-add-qaction-menu-items-to-dock-icon-mac
 #ifdef Q_OS_MAC
 extern void qt_mac_set_dock_menu(QMenu *);
 #endif
 
-static QMutex blink1mutex;
+// globals to hold devices in use
 static blink1_device* blink1devs[16];
 static int blink1devcount;
 
@@ -45,38 +51,34 @@ enum {
 };
 
 
-#ifdef Q_OS_MAC
-#include <CoreFoundation/CoreFoundation.h>
-#endif
+void noisyFailureMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg);
+
+//
 void MainWindow::osFixes()
 {
-#ifdef Q_OS_MAC
     qDebug() << "running osFixes";
+#ifdef Q_OS_WIN
+    // to capture Windows power change (sleep/wake) on Windows
+    qApp->installNativeEventFilter(this);
+#endif
+
+#ifdef Q_OS_MAC
+    // 
+    installOSXSleepWakeNotifiers(this); //, this);
+    
     // FIXME: the below is lame, but it appears putting this in Info.plist
     // or in mainBundle dict doesn't work.
-    // appears to require app restart to take effect
+    // and appears to require app restart to take effect
     QProcess cmd;
     cmd.start("defaults write com.thingm.Blink1Control NSAppSleepDisabled -bool YES");
     cmd.waitForFinished();
-    /* this doesn't seem to work
-    CFBundleRef mainBundle = CFBundleGetMainBundle();
-    if( mainBundle ){
-        // get the application's Info Dictionary. For app bundles this would live in the bundle's Info.plist,
-        // for regular executables it is obtained in another way.
-        CFMutableDictionaryRef infoDict = (CFMutableDictionaryRef) CFBundleGetInfoDictionary(mainBundle);
-        if( infoDict ){
-            CFDictionarySetValue(infoDict, CFSTR("NSAppSleepDisabled"), CFSTR("1"));
-            // Add or set the "LSUIElement" key with/to value "1". This can simply be a CFString.
-            //CFDictionarySetValue(infoDict, CFSTR("LSUIElement"), CFSTR("1"));
-            // That's it. We're now considered as an "agent" by the window server, and thus will have
-            // neither menubar nor presence in the Dock or App Switcher.
-        }
-    }
-    */
 
 #endif
 }
 
+//
+//
+//
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
@@ -88,7 +90,7 @@ MainWindow::MainWindow(QWidget *parent) :
     blink1Id="none";
     autorun=false;
     dockIcon=true;
-    startmin=false;
+    startMinimized = false;
     enableServer=false;
     enableGamma=false;
     firstRun=true;
@@ -98,9 +100,17 @@ MainWindow::MainWindow(QWidget *parent) :
     logstream=NULL;
     mode = NONE;
     duplicateCounter=0; // FIXME: bad name for this var
+    refreshCounter = 0;
 
     osFixes();
-    
+    sleepytime = false;
+
+    // hush errors "QSslSocket: cannot resolve SSL_set_psk_client_callback"
+    QLoggingCategory::setFilterRules("qt.network.ssl.warning=false");
+
+    //QErrorMessage::qtHandler(); // install handler that turns qWarning() into dialogs
+    //qInstallMessageHandler(noisyFailureMessageHandler);
+        
     httpserver = new HttpServer();
     httpserver->setController(this);
     connect( httpserver, SIGNAL(blink1SetColorById(QColor,int,QString,int)), 
@@ -109,9 +119,6 @@ MainWindow::MainWindow(QWidget *parent) :
     blink1_enumerate();
 
     settingsLoad();
-
-    addToLog("LOGGING: "+QString::number(logging));
-    startOrStopLogging( logging );
 
     QIcon ico = QIcon(":/images/blink1-icon0.png");
     QIcon icobw = QIcon(":/images/blink1-icon0-bw.png");
@@ -123,7 +130,15 @@ MainWindow::MainWindow(QWidget *parent) :
     createTrayIcon();
     trayIcon->setIcon( mac() ? icobw : ico );
     trayIcon->show();
-   
+
+    /*
+    // test for shift key held-down at startup to enable logging
+    if( QApplication::keyboardModifiers().testFlag(Qt::ShiftModifier) == true ) {
+        qDebug() << "SHIFT key on start, turning on logging";
+        logging = true;
+        startOrStopLogging( logging );
+    }
+    */    
     activePatternName="";
 
     cc = QColor(0,0,0);
@@ -164,20 +179,21 @@ MainWindow::MainWindow(QWidget *parent) :
     qmlRegisterType<QsltCursorShapeArea>("CursorTools", 1, 0, "CursorShapeArea");
     viewer.rootContext()->setContextProperty("mw", this);
     viewer.setMainQmlFile(QStringLiteral("qml/qml/main.qml"));
-    viewer.setFlags( Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    //viewer.setFlags( Qt::Window | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    viewer.setFlags( Qt::Window ); //| Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
 
     viewer.setMinimumHeight(717); // for bg-new.jpg
     viewer.setMaximumHeight(717);
     viewer.setMinimumWidth(1185);
     viewer.setMaximumWidth(1185);
     viewer.setTitle("Blink(1) Control");
-
+ 
     inputTimerCounter = 0;
     inputsTimer = new QTimer(this);
     inputsTimer->singleShot( updateInputsMillis, this, SLOT(updateInputs()));
     isIftttChecked = false;
 
-    if(startmin){
+    if(startMinimized){
         viewer.showMinimized();
         viewer.hide();
     }else{
@@ -188,11 +204,11 @@ MainWindow::MainWindow(QWidget *parent) :
     emit ledsUpdate();
     emit deviceUpdate();
 
-
     setColorToBlink(cc,400);  // give a default non-black color to let people know it works
 
     connect( &viewer, SIGNAL(activeChanged()),this,SLOT(viewerActiveChanged()));
-
+	connect(qApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)),
+            this, SLOT(onApplicationStateChange(Qt::ApplicationState)));
     qApp->setQuitOnLastWindowClosed(false);  // this makes close button not quit qpp
 
     // some keyboard shortcut experiments that seem to ALL not work
@@ -202,22 +218,93 @@ MainWindow::MainWindow(QWidget *parent) :
     //resetAlertsShortcut = new QShortcut( QKeySequence(Qt::CTRL+Qt::Key_R), viewer.rootObject() );
     //resetAlertsShortcut->setContext(Qt::ApplicationShortcut);
     //connect( resetAlertsShortcut, SIGNAL(activated()), this, SLOT(resetAlertsOption()));
-
 }
+
+// call when we know we're about to suspend
+void MainWindow::goingToSleep()
+{
+    addToLog("goingToSleep...");
+    sleepytime = true;
+    on_buttonOff_clicked();
+}
+// call when we know we've been woken up
+void MainWindow::wakingUp()
+{
+    addToLog("wakingUp...");
+    sleepytime = false;
+    refreshBlink1s = true;
+}
+
+// to capture windows power management (sleep/wake) events
+// see: https://msdn.microsoft.com/en-us/library/windows/desktop/aa373247(v=vs.85).aspx
+// see: http://vb.mvps.org/articles/vsm20100105.pdf
+//bool MainWindow::nativeEventFilter(const QByteArray &eventType, void *message, long *result)
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEventFilter(const QByteArray &, void *message, long* )
+{
+    //qDebug() << "nativeEvent: "<< message;
+    MSG* msg = (MSG*)(message);
+    if(msg->message == WM_POWERBROADCAST ) {
+        qDebug() << "WM_POWERBROADCAST! wParam:"<< msg->wParam;  // 4, 18, 7, 10,10, 10,10
+        // (sleep) -> PBT_APMSUSPEND -> PBT_APMRESUMEAUTOMATIC -> PBT_APMRESUMESUSPEND -> PBT_APMPOWERSTATUSCHANGE
+        if( msg->wParam == PBT_APMSUSPEND ) {
+            goingToSleep();
+        }
+        else if( msg->wParam == PBT_APMRESUMESUSPEND ) {
+            wakingUp();
+        }
+        //SYSTEM_POWER_STATUS pwr;
+        // GetSystemPowerStatus(&pwr);
+        //qDebug() << pwr.BatteryFlag << endl;
+    }
+    return false;
+}
+#else
+bool MainWindow::nativeEventFilter(const QByteArray &, void *, long* )
+{
+    return false;
+}
+#endif
 
 // called when window has focus
 void MainWindow::viewerActiveChanged() {
-    qDebug() << "viewerActiveChanged: " << viewer.isActive();
-    settingsSave();
+    //qDebug() << "viewerActiveChanged: " << viewer.isActive();
+    //if( viewer.isActive() ) settingsSave();
 }
 
-//
+// called when appllication state has changed
+// http://doc.qt.io/qt-5/qt.html#ApplicationState-enum
+// (tho only Active & Inactive are issued)
+void MainWindow::onApplicationStateChange(Qt::ApplicationState state) {
+    qDebug() << "applicationStateChanged: " << state;
+}
+
+// close all blink1s
+void MainWindow::blink1CloseAll()
+{
+    for( int i=0; i<blink1devcount; i++) {
+        blink1_close( blink1devs[i] );
+    }
+    memset( blink1devs, 0, sizeof(blink1devs));  // clear local device cache
+    blink1devcount = 0;
+    blink1dev = NULL;
+}
+
+// periodically poll for blink(1) device connect or disconnect
+// update internal knowledge about blink(1)s when change is detected
 void MainWindow::refreshBlink1State()
 {
+    if( sleepytime ) {
+        addToLog( "refreshBlink1State: sleeping...");
+        blink1CloseAll();
+        blinkStatus = "blink(1) disconnected";
+        emit deviceUpdate();
+        return;
+    }
+   
     if( !refreshBlink1s ) {
         return;
     }
-
     if( enableGamma ) {
         blink1_enableDegamma();  // FIXME: bad names for these funcs
     } else {
@@ -225,34 +312,25 @@ void MainWindow::refreshBlink1State()
     }
     refreshCounter++;
     qint64 nowMillis = QDateTime::currentDateTime().toMSecsSinceEpoch();
-    addToLog( "refreshBlink1State: --- refreshing:" + QString::number(refreshCounter));
-    //+" - threadid:"+ QString::number((qint64)QThread::currentThreadId()) );
+    addToLog( "refreshBlink1State: --- starting. count:" + QString::number(refreshCounter));
     
-    //bool gotlock = blink1mutex.tryLock(500); // wait
-    //if( !gotlock ) addToLog("refreshBlink1State: *** COULD NOT MUTEX LOCK ***");
+    blink1CloseAll();
     
-    // close all blink1s
-    for( int i=0; i<blink1devcount; i++) {
-        blink1_close( blink1devs[i] );
-    }
-    memset( blink1devs, 0, sizeof(blink1devs));  // clear local device cache
-
     // open up all blink1s
     blink1devcount = blink1_enumerate();
     for( int i=0; i<blink1devcount; i++ ) { 
         blink1devs[i] = blink1_openById( i );
-        addToLog("refreshBlink1State: opened blink1 #" +QString::number(i)); // << blink1devs[i] );
+        addToLog("refreshBlink1State: open & cached blink1 #" +QString::number(i));
     }
     
-    addToLog("refreshBlink1State: opening blink1Index:" + QString::number(blink1Index,16) );
+    addToLog("refreshBlink1State: opening for use blink1Index:" + QString::number(blink1Index,16) );
     int blid = blink1_getCacheIndexById( blink1Index );
     blink1dev = blink1devs[ blid ];
 
-    //if( gotlock ) blink1mutex.unlock();
-    
     if( blink1dev ) {
         blinkStatus="blink(1) connected";
-        QString serialstr = blink1_getCachedSerial( blink1_getCacheIndexByDev(blink1dev));
+        QString serialstr = QString(blink1_getCachedSerial( blink1_getCacheIndexByDev(blink1dev)));
+        addToLog("refreshBlink1State: connected, blink1serial='"+serialstr+"'");
         blink1Id = serialstr;
         iftttKey = iftttKey.left(8) + blink1Id;
         mk2 = blink1_isMk2(blink1dev);
@@ -263,6 +341,7 @@ void MainWindow::refreshBlink1State()
         iftttKey = iftttKey.left(8) + "00000000";
         blink1Id = "none";
         refreshBlink1s = true;
+        addToLog("refreshBlink1State: no blink(1) found");
     }
 
     qint64 elapsedMillis = QDateTime::currentDateTime().toMSecsSinceEpoch() - nowMillis;
@@ -275,22 +354,23 @@ void MainWindow::refreshBlink1State()
     emit deviceUpdate();
     emit iftttUpdate();
     emit updateBlink1Serials();
-
 }
-//
+
+// set which blink(1) is to be used (defaults to 0, the first blink1)
 void MainWindow::setBlink1Index( QString blink1IndexStr )
 {
     qDebug() << "blink1IndexStr: "<< blink1IndexStr;
     bool ok;
-    blink1Index  = blink1IndexStr.toLong(&ok,16);  // is blink1indexstr a hex serial number?
+    blink1Index  = blink1IndexStr.toLong(&ok,16);    // check if blink1indexstr a hex serial number?
     if( !ok ) {
-        blink1Index = blink1IndexStr.toLong(&ok,10); // is it an 0-n index?
-        if( !ok ) blink1Index = 0;
+        blink1Index = blink1IndexStr.toLong(&ok,10); // check if its a 0-n index?
+        if( !ok ) blink1Index = 0; // if not, default back to 0
     }
     qDebug() << "blink1Index: " << QString::number(blink1Index,16);
 }
 
-//
+// synchronously blink the specified blink(1), used in Preferences dialog
+// if no blink1 (via no blink1serialstr), return immediately
 void MainWindow::blink1Blink( QString blink1serialstr, QString colorstr, int millis )
 {
     if( blink1serialstr=="" ) return;
@@ -318,7 +398,6 @@ void MainWindow::blink1SetColorById( QColor color, int millis, QString blink1ser
     bool ok;
     int blid  = blink1serialstr.toLong(&ok,16);
     
-    //blink1mutex.lock();
     blid = blink1_getCacheIndexById( blid );
 
     bool ismaindev = ( blink1serialstr == blink1Id || blid==0 ) ;
@@ -337,7 +416,7 @@ void MainWindow::blink1SetColorById( QColor color, int millis, QString blink1ser
     else { 
         qDebug() << "blink1SetColorById: null bdev";
     }
-    //blink1mutex.unlock();
+
     qDebug() << "*** blink1SetColorById: done";
 }
 
@@ -358,7 +437,7 @@ void MainWindow::runPattern(QString name, bool fromQml)
     if(!patterns.value(name))
         return;
 
-    if(!fromQml){
+    if(!fromQml){  // FIXME: why do we need this boolean?
         if(patterns.contains(name)) patterns.value(name)->play(cc);
     }
 }
@@ -455,6 +534,7 @@ void MainWindow::updateInputs()
             emails.value(mailname)->checkMail();
         }
         emails.value(mailname)->changeFreqCounter();
+        emails.value(mailname)->updateValues();
     }
 
     delete hardwaresIterator;
@@ -493,8 +573,8 @@ void MainWindow::updateInputs()
  */
 void MainWindow::checkIfttt(QString txt)
 {
-    //qDebug() << "todtest: checkIfttt(txt) " << txt;
-    QJsonDocument respdoc = QJsonDocument::fromJson( txt.toLatin1() );
+    qDebug() << "checkIfttt(txt) " << txt;
+    QJsonDocument respdoc = QJsonDocument::fromJson( txt.toUtf8() );
     QJsonObject respobj = respdoc.object();
     QJsonValue statval = respobj.value( QString("status") );  // should really check status :)
     //qDebug() << "checkIfttt: status: " << statval.toString();
@@ -529,7 +609,7 @@ void MainWindow::checkIfttt(QString txt)
             if( input->type() == "ifttt" ) {
                 // is the event newer than our last event, then trigger!
                 if( evdate > input->date() ) {
-                    //qDebug() << "new ifttt event for "<< input->arg1();
+                    qDebug() << "new ifttt event for "<< input->arg1();
                     if( evname == input->arg1() ) {
                         qDebug() << "saving new ifttt event for "<< input->arg1();
                         input->setDate(evdate); // save for next go around
@@ -550,7 +630,7 @@ void MainWindow::checkIfttt(QString txt)
 
 void MainWindow::addRecentEvent(int date, QString name, QString from)
 {
-    addToLog(name+" "+from);
+    addToLog(name+" via "+from);
     //QString text = getTimeFromInt(QDateTime::currentDateTime().toTime_t()/*date*/) + "-" + name + " via " + from;
     if( date < 1 ) date = QDateTime::currentDateTime().toTime_t();
     QString text = getTimeFromInt(date) + "-" + name + " via " + from;
@@ -578,7 +658,7 @@ QString MainWindow::getTimeFromInt(int t)
 
 MainWindow::~MainWindow()
 {
-    qDebug() << "destructor";
+    //qDebug() << "destructor";
     quit();
 
     delete minimizeAction;
@@ -600,13 +680,16 @@ MainWindow::~MainWindow()
 
 void MainWindow::quit()
 {
+
     // secret isQuit bool so quit() knows not to run itself twice
     // (app quit semantics are ill-defined in this weird universe
     // of not running the main window in a MainWindow: damn QML)
     static bool isQuit = false;
-    qDebug() << "quit isQuit:" << isQuit;
+    //qDebug() << "quit isQuit:" << isQuit;
     if( isQuit ) return;
     isQuit = true;
+
+    settingsSave();
 
     if(httpserver->status()){
         httpserver->stop();
@@ -614,7 +697,7 @@ void MainWindow::quit()
     }
     if(logging)
         logFile->close();
-    settingsSave();
+
     trayIcon->hide(); // can cause Mac crash, see notes: http://qt-project.org/doc/qt-4.8/qsystemtrayicon.html
     foreach (QString name, patterns.keys()) {
        stopPattern(name);
@@ -646,26 +729,33 @@ void MainWindow::settingsExport( QString filepath )
         QUrl furl = QUrl( filepath );
         filepath = furl.toLocalFile();
     }
-    qDebug() << "settingsExport: "<<filepath;
+    addToLog("settingsExport: " + filepath);
     QSettings settings( filepath, QSettings::IniFormat );
     settingsSave( settings );
 }
 
-
 void MainWindow::settingsSave()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "ThingM", "Blink1Control");
+    int st = settings.status();
+    if( st != QSettings::NoError ) { // error case
+        addToLog("settingsSave: error code=" + QString::number(st) );
+        //errorMessageDialog->showMessage("Cannot save settings");
+        qWarning("Settings cannot be saved.");
+        QMessageBox::critical(this, "Blink1Control",
+                              "Cannot save settings.\nSettings file: "+settings.fileName(), QMessageBox::Ok);
+        //qDebug() << "message box ret ="<< ret;
+    }
     settingsSave( settings );
 }
 
 void MainWindow::settingsSave( QSettings & settings )
 {
-    //qDebug() << "settingsSave: " << settings.fileName();
-    
+    qDebug() << "settingsSave: " << settings.fileName();
     settings.setValue("iftttKey", iftttKey);//sText);
     settings.setValue("autorun", autorunAction->isChecked());
     settings.setValue("dockIcon", dockIconAction->isChecked());
-    settings.setValue("startmin",startmin);
+    settings.setValue("startMinimized",startMinimized);
     settings.setValue("server", enableServer);
     settings.setValue("logging",logging);
     settings.setValue("blink1Index", QString::number(blink1Index,16) );
@@ -720,7 +810,7 @@ void MainWindow::settingsSave( QSettings & settings )
         qarrpm.append(obj);
     }
     QString emsstr = QJsonDocument(qarrpm).toJson(QJsonDocument::Compact);
-    settings.setValue("emails", emsstr);
+    settings.setValue("emailstoo", emsstr);
 
     // save hardware monitors (why aren't these inputs?)
     QJsonArray qarrpm2;
@@ -732,8 +822,8 @@ void MainWindow::settingsSave( QSettings & settings )
     QString harstr = QJsonDocument(qarrpm2).toJson(QJsonDocument::Compact);
     settings.setValue("hardwareMonitors", harstr);
 
-    //settings.sync();  // just in case
-    //qDebug() << "settingsSave() done";
+    settings.sync();  // just in case
+    addToLog("settingsSave: done");
 }
 
 //
@@ -753,37 +843,47 @@ void MainWindow::settingsImport( QString filepath )
 void MainWindow::settingsLoad()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "ThingM", "Blink1Control");
+    int st = settings.status();
+    if( st != QSettings::NoError ) { // error case
+        addToLog("settingsLoad: error code=" + QString::number(st) );
+        QMessageBox::critical(this, "Blink1Control",
+                              "Cannot load settings.\nSettings file: "+settings.fileName(), QMessageBox::Ok);
+    }
     settingsLoad( settings );
 }
 
 //
 void MainWindow::settingsLoad( QSettings & settings )
 {
+    qDebug() << "settingsLoad: " << settings.fileName();
+    logging        = settings.value("logging",false).toBool();
+    autorun        = settings.value("autorun",false).toBool();
+    dockIcon       = settings.value("dockIcon",true).toBool();
+    startMinimized = settings.value("startMinimized",false).toBool();
+    enableServer   = settings.value("server",false).toBool();
+    enableGamma    = settings.value("enableGamma",true).toBool();
+    firstRun       = settings.value("firstRun",true).toBool();
 
+    startOrStopLogging( logging );
+    addToLog("settingsLoad: settings loaded");
+    
     QString sIftttKey = settings.value("iftttKey", "").toString();
-    QRegExp re("^[a-f0-9]+$");
-    qDebug() << "settingsLoad: " << sIftttKey << re.exactMatch(sIftttKey.toLower());
-    addToLog("iftttKey:"+sIftttKey);
+    QRegExp re("^[a-f0-9]{16}"); // 16-digit hex 
+    addToLog("settingsLoad: iftttKey='" + sIftttKey  + "'"); //re.exactMatch(sIftttKey.toLower()));
 
-    if(sIftttKey=="" || sIftttKey=="none" || !re.exactMatch(sIftttKey.toLower())){
+    // check to see if saved iftttKey is valid
+    if(sIftttKey=="" || sIftttKey=="none" || !re.exactMatch(sIftttKey.toLower()) ) {
+        addToLog("settingsLoad: empty or bad IftttKey, generating new IftttKey");
         sIftttKey="";
         srand(time(NULL));
             for(int i=0;i<8;i++){
                 int tmp=rand()%55+48;
                 while((tmp>=58 && tmp<=96))
-                    tmp=rand()%55+48;
+                    tmp=rand()%55+48;  // 48? 55? 96?  these are ascii I think?
                 sIftttKey.append(QChar(tmp).toLatin1());
             }
     }
-    iftttKey=sIftttKey;
-
-    autorun      = settings.value("autorun",false).toBool();
-    dockIcon     = settings.value("dockIcon",true).toBool();
-    startmin     = settings.value("startmin",false).toBool();
-    enableServer = settings.value("server",false).toBool();
-    logging      = settings.value("logging",false).toBool();
-    enableGamma  = settings.value("enableGamma",true).toBool();
-    firstRun     = settings.value("firstRun",true).toBool();
+    iftttKey = sIftttKey;
 
     // allow selection of "host" and port for API server
     // serverHost can be "localhost" or "any"
@@ -803,7 +903,7 @@ void MainWindow::settingsLoad( QSettings & settings )
     proxyPass = settings.value("proxyPass","").toString();
 
     if( (proxyType == "socks5" || proxyType == "socks") && proxyHost !="" && proxyPort != 0 ) {
-        qDebug() << "Setting SOCKS5 proxy";
+        addToLog("Setting SOCKS5 proxy");
         QNetworkProxy proxy;
         proxy.setType( QNetworkProxy::Socks5Proxy );
         proxy.setHostName( proxyHost );
@@ -813,7 +913,7 @@ void MainWindow::settingsLoad( QSettings & settings )
         QNetworkProxy::setApplicationProxy(proxy);
     }
     else if( proxyType == "http" && proxyHost !="" && proxyPort != 0 ) {
-        qDebug() << "Setting HTTP proxy";
+        addToLog("Setting HTTP proxy");
         QNetworkProxy proxy;
         proxy.setType( QNetworkProxy::HttpProxy );
         proxy.setHostName( proxyHost );
@@ -827,10 +927,17 @@ void MainWindow::settingsLoad( QSettings & settings )
     QString blink1IndexStr = settings.value("blink1Index","").toString();
     setBlink1Index( blink1IndexStr );
 
-
+    // load up list of built-in light patterns
     QString patternspath = QCoreApplication::applicationDirPath();
     if( mac() ) patternspath += "/../Resources/help/help/patternsReadOnly.json";  // FIXME: better way?
-    else        patternspath += "/help/help/patternsReadOnly.json";
+    else {
+#if QT_NO_DEBUG        
+        patternspath += "/help/help/patternsReadOnly.json";
+#else
+        patternspath += "/../help/help/patternsReadOnly.json";
+#endif
+// how much do I dislike Qt? see above
+    }
     QFile patternsfile(patternspath);
     QString patternsReadOnly = "{}";
     if( patternsfile.open(QFile::ReadOnly | QFile::Text) ) { 
@@ -838,13 +945,13 @@ void MainWindow::settingsLoad( QSettings & settings )
         patternsReadOnly = in.readAll();
         patternsfile.close();
     } else { 
-        qDebug() << "couldn't open patternsfile: " << patternspath;
+        addToLog( "couldn't open patternsfile: " + patternspath);
     }
 
     // read only patterns
-    QJsonDocument doc = QJsonDocument::fromJson( patternsReadOnly.toLatin1() );
+    QJsonDocument doc = QJsonDocument::fromJson( patternsReadOnly.toUtf8() );
     if( doc.isNull() ) {
-        qDebug() << "ERROR!: patternsReadOnly syntax error!";
+        addToLog("ERROR!: patternsReadOnly syntax error!");
     }
     //qDebug() << doc.toJson( QJsonDocument::Indented );
     QJsonArray qarr = doc.array();
@@ -862,7 +969,7 @@ void MainWindow::settingsLoad( QSettings & settings )
 
     QString sPatternStr = settings.value("patterns","").toString();
     if( sPatternStr.length() ) {
-        QJsonDocument doc = QJsonDocument::fromJson( sPatternStr.toLatin1() );
+        QJsonDocument doc = QJsonDocument::fromJson( sPatternStr.toUtf8() );
         QJsonArray qarr = doc.array();
         for( int i=0; i< qarr.size(); i++ ) {
             Blink1Pattern* bp = new Blink1Pattern();
@@ -874,7 +981,7 @@ void MainWindow::settingsLoad( QSettings & settings )
     }
     QString sInputStr = settings.value("inputs","").toString();
     if( sInputStr.length() ) {
-        QJsonDocument doc = QJsonDocument::fromJson( sInputStr.toLatin1() );
+        QJsonDocument doc = QJsonDocument::fromJson( sInputStr.toUtf8() );
         QJsonArray qarr = doc.array();
         for( int i=0; i< qarr.size(); i++ ) {
             Blink1Input* bi = new Blink1Input();
@@ -882,7 +989,8 @@ void MainWindow::settingsLoad( QSettings & settings )
             inputs.insert( bi->name(), bi );
             // find most recent ifttt time
             if( bi->type() == "ifttt" ) {
-                qDebug() << "input name:"<<bi->name() <<" iftttTime: "<<bi->date() << " nowSecs: "<<nowSecs;
+                addToLog("input name:" + bi->name() +" iftttTime: " + bi->date() +
+                         " nowSecs: " + QString::number(nowSecs));
                 if( bi->date() > nowSecs || bi->date() < 1 ) {  // if bad stored date, fix it
                     bi->setDate( nowSecs );
                 }
@@ -898,7 +1006,7 @@ void MainWindow::settingsLoad( QSettings & settings )
 
     QString sButtStr = settings.value("bigbuttons2","").toString();
     if( sButtStr.length() ) {
-        QJsonDocument doc = QJsonDocument::fromJson( sButtStr.toLatin1() );
+        QJsonDocument doc = QJsonDocument::fromJson( sButtStr.toUtf8() );
         QJsonArray qarr = doc.array();
         for( int i=0; i< qarr.size(); i++ ) {
             BigButtons *bb = new BigButtons("",QColor());
@@ -913,9 +1021,9 @@ void MainWindow::settingsLoad( QSettings & settings )
     }
     emit bigButtonsUpdate();
 
-    QString sEmStr = settings.value("emails","").toString();
+    QString sEmStr = settings.value("emailstoo","").toString();
     if( sEmStr.length() ) {
-        QJsonDocument docm = QJsonDocument::fromJson( sEmStr.toLatin1() );
+        QJsonDocument docm = QJsonDocument::fromJson( sEmStr.toUtf8() ); //sEmStr.toLatin1() );
         QJsonArray qarrm = docm.array();
         for( int i=0; i< qarrm.size(); i++ ) {
             Email* bp = new Email("");
@@ -923,13 +1031,14 @@ void MainWindow::settingsLoad( QSettings & settings )
             connect(bp,SIGNAL(addReceiveEvent(int,QString,QString)),this,SLOT(addRecentEvent(int,QString,QString)));
             connect(bp,SIGNAL(addToLog(QString)),this,SLOT(addToLog(QString)));
             bp->fromJson( qarrm.at(i).toObject() );
+            bp->setProxySettings( proxyType, proxyHost, proxyPort, proxyUser, proxyPass );
             emails.insert( bp->getName(), bp );
         }
     }
 
     QString sEmStr2 = settings.value("hardwareMonitors","").toString();
     if( sEmStr2.length() ) {
-        QJsonDocument docm = QJsonDocument::fromJson( sEmStr2.toLatin1() );
+        QJsonDocument docm = QJsonDocument::fromJson( sEmStr2.toUtf8() );
         QJsonArray qarrm = docm.array();
         for( int i=0; i< qarrm.size(); i++ ) {
             HardwareMonitor* bp = new HardwareMonitor("");
@@ -952,6 +1061,7 @@ void MainWindow::settingsLoad( QSettings & settings )
 }
 
 // single point of entry for updating the blink1 device
+// also confusingly has state-machine for special BigButton functinonality
 void MainWindow::updateBlink1()
 {
     bool setBlink1 = false;
@@ -1044,6 +1154,7 @@ void MainWindow::changeColorFromQml(QColor c)
     updateBlink1();
 }
 
+// 
 void MainWindow::createActions()
 {
     aboutAction = new QAction(tr("About Blink1Control"),this);
@@ -1060,7 +1171,7 @@ void MainWindow::createActions()
     minimizeAction = new QAction(tr("Start minimized"), this);
     connect(minimizeAction,SIGNAL(triggered()),this,SLOT(changeMinimizeOption()));
     minimizeAction->setCheckable(true);
-    minimizeAction->setChecked(startmin);
+    minimizeAction->setChecked(startMinimized);
     restoreAction = new QAction(tr("&Restore"), this);
     connect(restoreAction,SIGNAL(triggered()),this,SLOT(showNormal()));
     quitAction = new QAction(tr("&Quit"), this);
@@ -1069,7 +1180,7 @@ void MainWindow::createActions()
     autorunAction=new QAction("Start at login",this);
     autorunAction->setCheckable(true);
     autorunAction->setChecked(autorun);
-    connect(autorunAction,SIGNAL(triggered()),this,SLOT(setAutorun()));
+    connect(autorunAction,SIGNAL(triggered()),this,SLOT(changeAutorunOption()));
     dockIconAction=new QAction("Show Dock Icon",this);
     dockIconAction->setCheckable(true);
     dockIconAction->setChecked(dockIcon);
@@ -1082,17 +1193,26 @@ void MainWindow::createActions()
     serverAction->setChecked(enableServer);
     connect(serverAction,SIGNAL(triggered()),this,SLOT(startStopServer()));
     
-    alertsAction=new QAction("Off / Reset Alerts",this);
-    connect(alertsAction,SIGNAL(triggered()),this,SLOT(resetAlertsOption()));
-    
-    resetAlertsShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R),this); //, this, SLOT(resetAlertsOption()));
-    alertsAction->setShortcut(Qt::Key_R | Qt::CTRL);
-
+    offAction=new QAction("Off / Reset Alerts",this);
+    connect(offAction,SIGNAL(triggered()),this,SLOT(resetAlertsOption()));
+    offAction->setShortcut(Qt::Key_R | Qt::CTRL);
+    // shortcuts dont' work, instead must put in QML, they're here for visual indication in menu
+    //resetAlertsShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R),this); //, this, SLOT(resetAlertsOption()));
     // shortcuts don't work apparently in traymenus
-    //alertsAction->setShortcut(Qt::Key_R | Qt::CTRL);
+    // offAction->setShortcut(Qt::Key_R | Qt::CTRL);
     // this doesn't appear to work either
-    //resetAlertsShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R), this, SLOT(resetAlertsOption()));
+    // resetAlertsShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R), this, SLOT(resetAlertsOption()));
     // neither does this work
+}
+
+void MainWindow::trayBigButtonTriggered(QAction* act)
+{
+    //QString pname = act->text();
+    //pname.replace("Set to ",""); 
+    //playBigButton( pname );
+    //QKeySequence k = act->shortcut();
+    qDebug() << "triggered:"<< act->text()<< ":" << act->toolTip();
+    playBigButton( act->toolTip().toInt()-1 );
 }
 
 void MainWindow::createTrayIcon()
@@ -1110,8 +1230,19 @@ void MainWindow::createTrayIcon()
     trayIconMenu->addAction(dockIconAction);
     #endif
     trayIconMenu->addSeparator();
+    bigButtonActions = new QActionGroup(this);
+    connect( bigButtonActions, SIGNAL(triggered(QAction*)), this, SLOT(trayBigButtonTriggered(QAction*)) );
+    for( int i=0; i< bigButtons2.count(); i++ ) {
+        BigButtons* b = bigButtons2.at(i);
+        QAction* a = new QAction( "Set to "+b->getName(), this);
+        a->setShortcut(QKeySequence("Ctrl+"+QString::number(i+1)));
+        a->setToolTip( QString::number(i+1) );
+        bigButtonActions->addAction(a);
+        trayIconMenu->addAction( a );
+    }
+    trayIconMenu->addSeparator();
+    trayIconMenu->addAction(offAction);
     trayIconMenu->addAction(settingAction);
-    trayIconMenu->addAction(alertsAction);
     trayIconMenu->addAction(quitAction);
 
     trayIcon = new QSystemTrayIcon(this);
@@ -1131,9 +1262,11 @@ void MainWindow::createTrayIcon()
 void MainWindow::trayIconActivated(QSystemTrayIcon::ActivationReason reason)
 {
     qDebug() << "tray icon clicked! " << reason;
+
     //if( reason == QSystemTrayIcon::DoubleClick ) {
     if( reason == QSystemTrayIcon::Trigger && !mac() ) {
         showNormal();
+        settingsSave();
     }
 }
 
@@ -1240,21 +1373,23 @@ void MainWindow::showAboutDialog(){
     QString message = "Blink1Control \n";
     message += "   for blink(1) and blink(1) mk2.\n";
     message += "Version: " + QString(BLINK1CONTROL_VERSION)+ "\n";
-    message += "2013-2014 ThingM Corp.\n";
+    message += "2013-2015 ThingM Corp.\n";
     message += "Visit blink1.thingm.com for more info\n";
     QMessageBox::about(this, QString("About Blink1Control"), message);
 }
 
 void MainWindow::changeMinimizeOption() {
-    startmin=!startmin;
+    startMinimized = !startMinimized;
+    qDebug() << "changeMinimizeOption";
     //emit prefsUpdate();
+    settingsSave();
 }
 void MainWindow::showMinimize(){
     viewer.showMinimized();
     viewer.hide();
 }
 void MainWindow::showNormal(){
-    qDebug() << "showNormal";
+    //qDebug() << "showNormal";
     viewer.showNormal();
     viewer.raise();  // for MacOS
     //from: http://stackoverflow.com/questions/6087887/bring-window-to-front-raise-show-activatewindow-don-t-work
@@ -1263,13 +1398,24 @@ void MainWindow::showNormal(){
     viewer.requestActivate();
     //viewer.activateWindow(); // for Windows
 }
-void MainWindow::playBigButton(int idx){
+// play the first named bigbutton
+void MainWindow::playBigButton(QString name)
+{
+    int idx = -1;
+    for( int i=0; i< bigButtons2.count(); i++) {
+        if( bigButtons2.at(i)->getName() == name ) idx = i;
+    }
+    playBigButton(idx);
+}
+void MainWindow::playBigButton(int idx)
+{
+    if( idx >= bigButtons2.count() ) return;
     blink1timer->stop();
-    QString tmp=bigButtons2.at(idx)->getPatternName();
-    if(tmp==""){
+    QString tmp = bigButtons2.at(idx)->getPatternName();
+    if( tmp=="" ) {
         this->led=bigButtons2.at(idx)->getLed();
         emit ledsUpdate();
-        cc=bigButtons2.at(idx)->getCol();
+        cc = bigButtons2.at(idx)->getCol();
         mode=RGBSET;
         updateBlink1();
         QMetaObject::invokeMethod((QObject*)viewer.rootObject(),"changeColor2", Q_ARG(QVariant, cc),Q_ARG(QVariant,0.0));
@@ -1278,10 +1424,45 @@ void MainWindow::playBigButton(int idx){
             patterns.value(tmp)->play(cc);
     }
 }
-void MainWindow::setAutorun(){
+
+// called by tray menu
+void MainWindow::changeAutorunOption() {
     autorun = autorunAction->isChecked();
-    //emit prefsUpdate();
+    qDebug() << "changeAutoRun:" << autorun;
     if( autorun ){
+#ifdef Q_OS_MAC
+            QFileInfo dir(QDir::homePath()+"/Library/LaunchAgents");
+            if(!dir.exists()) {
+                QDir d(QDir::homePath()+"/Library");
+                d.mkdir(QDir::homePath()+"/Library/LaunchAgents");
+            }
+            QFile file(QDir::homePath()+"/Library/LaunchAgents/Blink1Control.plist");
+            file.open(QIODevice::WriteOnly | QIODevice::Text);
+            QTextStream out(&file);
+            out <<"<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict>"
+                << "<key>Label</key><string>Blink1Control</string>"
+                << "<key>RunAtLoad</key><true/>"
+                << "<key>Program</key><string>"
+                << "/Applications/Blink1Control.app/Contents/MacOS/Blink1Control"
+                << "</string></dict></plist>";
+            file.close();
+
+            QProcess *myProcess = new QProcess();
+            QStringList arg;
+            arg.append("load");
+            arg.append("-w");
+            arg.append(QDir::homePath()+"/Library/LaunchAgents/Blink1Control.plist");
+            myProcess->start("launchctl", arg);
+#endif
+#ifdef Q_OS_WIN
+        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                           QSettings::NativeFormat);
+        settings.setValue("blink", QCoreApplication::applicationFilePath().replace('/','\\'));
+#endif
+
+    }
+    else {  // turn off autorun / start at login
+
 #ifdef Q_OS_MAC
         QStringList arg;
         arg.append("unload");
@@ -1292,43 +1473,26 @@ void MainWindow::setAutorun(){
         if( file.exists())
             file.remove();
 #endif
-    #ifdef Q_OS_WIN
-        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",QSettings::NativeFormat);
-        settings.remove("blink");
-        #endif
-    }else{
-        #ifdef Q_OS_MAC
-            QFileInfo dir(QDir::homePath()+"/Library/LaunchAgents");
+#ifdef Q_OS_WIN
+        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                           QSettings::NativeFormat);
+        settings.remove("Blink1Control");
+        settings.remove("blink"); // remove old cruft
+#endif
 
-            if(!dir.exists()){
-                QDir d(QDir::homePath()+"/Library");
-                d.mkdir(QDir::homePath()+"/Library/LaunchAgents");
-            }
-            QFile file(QDir::homePath()+"/Library/LaunchAgents/Blink1Control.plist");
-            file.open(QIODevice::WriteOnly | QIODevice::Text);
-            QTextStream out(&file);
-            out <<"<plist version=\"1.0\"><dict><key>Label</key><string>Blink1Control</string><key>RunAtLoad</key><true/><key>Program</key><string>/Applications/Blink1Control.app/Contents/MacOS/Blink1Control</string></dict></plist>";
-            file.close();
-
-            QProcess *myProcess = new QProcess();
-            QStringList arg;
-            arg.append("load");
-            arg.append(QDir::homePath()+"/Library/LaunchAgents/Blink1Control.plist");
-            myProcess->start("launchctl", arg);
-        #endif
-        #ifdef Q_OS_WIN
-        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",QSettings::NativeFormat);
-        settings.setValue("blink", QCoreApplication::applicationFilePath().replace('/','\\'));
-        #endif
     }
+    //emit prefsUpdate();
+    settingsSave();
 }
+
+//
 void MainWindow::showhideDockIcon(){
     dockIcon = dockIconAction->isChecked();
     //emit prefsUpdate();
-    #ifdef Q_OS_MAC
+#ifdef Q_OS_MAC
     QSettings settings(QCoreApplication::applicationDirPath()+"/../Info.plist",QSettings::NativeFormat);
-    settings.setValue("LSUIElement",dockIcon?0:1);
-    #endif
+    settings.setValue("LSUIElement",dockIcon ? 0 : 1 );
+#endif
     // for window do something like:
     // setWindowFlags(windowFlags() | Qt::Tool);
 }
@@ -1341,14 +1505,12 @@ void MainWindow::startStopServer(){
     }else{
         httpserver->start();
     }
-    qDebug()<<"SERVER IS "<<httpserver->status() << " enableServer: "<<enableServer;
-    addToLog("SERVER IS "+QString::number(httpserver->status()));
+    //qDebug()<<"SERVER "<<httpserver->status() << " enableServer: "<<enableServer;
+    //addToLog("server: "+QString::number(httpserver->status())  );
 }
 
 void MainWindow::updatePreferences() { 
-    qDebug() << "updatePreferences";
-
-    qDebug() << "proxyUser: "<< proxyUser << "proxyPasss:"<<proxyPass;
+    addToLog("updatePreferences: proxyUser:"+ proxyUser+", proxyPass:"+proxyPass+".");
     
     serverAction->setChecked( enableServer );
     dockIconAction->setChecked( dockIcon );
@@ -1356,6 +1518,7 @@ void MainWindow::updatePreferences() {
     showhideDockIcon();
     startStopServer();
 
+    settingsSave();
 }
 
 QList<QObject*> MainWindow::getPatternsList(){
@@ -1412,6 +1575,24 @@ QVariantList MainWindow::getRecentEvents(){
     }
     return recentList;
 }
+/*
+QVariantList MainWindow::getMailFreqs(){
+    QVariantList mailFreqsList;
+
+    mailFreqsList.append( "1 min", 12 );
+}
+*/
+/*
+QVariantList MainWindow::getMailFreqsNames(){
+    QVariantList mailFreqsNamesList;
+    mailFreqsNamesList.append( QString("1 min") );
+    mailFreqsNamesList.append( QString("5 min") );
+    mailFreqsNamesList.append( QString("15 min") );
+    mailFreqsNamesList.append( QString("30 min") );
+    mailFreqsNamesList.append( QString("1 hour") );
+    return mailFreqsNamesList;
+}
+*/
 QVariantList MainWindow::getPatternsNames(){
     QVariantList patternsNamesList;
 
@@ -1657,10 +1838,21 @@ void MainWindow::removeBigButton2(int idx){
         BigButtons *tmp=bigButtons2.at(idx);
         bigButtons2.removeAt(idx);
         delete tmp;
-        if(!mac())
-            emit bigButtonsUpdate();
+        //if(!mac())
+        emit bigButtonsUpdate();
     }
 }
+void MainWindow::moveBigButton2(int oldidx, int newidx)
+{
+    if(oldidx<bigButtons2.size() && oldidx>=0 &&
+       newidx<bigButtons2.size() && newidx>=0 ) {
+        //bigButtons2.swap( oldidx, newidx );
+        BigButtons* tmp = bigButtons2.takeAt( oldidx );
+        bigButtons2.insert( newidx, tmp );
+    }
+    emit bigButtonsUpdate();
+}
+
 void MainWindow::updateBigButtons(){
     emit bigButtonsUpdate();
 }
@@ -1700,7 +1892,7 @@ QString MainWindow::selectFile(QString name){
 }
 // FIXME: why changeLed() and setLed()
 void MainWindow::setLed(int l){
-    qDebug()<<"LED "<<l;
+    //qDebug()<<"LED "<<l;
     led=l;
     emit ledsUpdate();
     //mode = 1;
@@ -1729,35 +1921,28 @@ bool MainWindow::mac(){
 void MainWindow::editColorAndTimeInPattern(QString pname,QString color,double time, int index){
     patterns.value(pname)->editColorAndTime(color, time, index);
 }
-void MainWindow::add_new_mail(QString name,int type, QString server, QString login, QString passwd, int port, bool ssl, int result, QString parser){
-    qDebug()<<"NEW EMAIL "+name;
-    addToLog("NEW EMAIL "+name);
+// FIXME: much code duplication with add_new_mail and edit_mail
+void MainWindow::add_new_mail(QString name,int type, QString server, QString username, QString passwd, int port, bool ssl, int searchtype, QString searchstr ){
+    addToLog("add_new_mail: "+name);
     if(name=="") name="name";
     int ile=0;
     while(emails.contains(name)){
         ile++;
         name=name+QString::number(ile);
     }
-    qDebug()<<"NEW EMAIL "+name;
     Email *e=new Email(name);
     connect(e,SIGNAL(runPattern(QString,bool)),this,SLOT(runPattern(QString,bool)));
     connect(e,SIGNAL(addReceiveEvent(int,QString,QString)),this,SLOT(addRecentEvent(int,QString,QString)));
     connect(e,SIGNAL(addToLog(QString)),this,SLOT(addToLog(QString)));
     e->setServer(server);
-    e->setType(type);
-    e->setLogin(login);
+    e->setServerType( (Email::ServerType)type ); 
+    e->setUsername(username);
     e->setPasswd(passwd);
     e->setPort(port);
     e->setSsl(ssl);
-    e->setResult(result);
-    e->setParser(parser);
-    QString email=login;
-    // FIXME: wtf marcin?
-    //if(login.indexOf("@")==-1){
-    //    if(server.indexOf(".")!=-1)
-    //        email+="@"+server.mid(server.indexOf(".")+1);
-    //}
-    e->setEmail(email);
+    e->setSearchType( (Email::SearchType)searchtype );
+    e->setSearchString( searchstr );
+    e->setProxySettings( proxyType, proxyHost, proxyPort, proxyUser, proxyPass );
     emails.insert(name,e);
     emit emailsUpdate();
     e->checkMail();
@@ -1765,17 +1950,18 @@ void MainWindow::add_new_mail(QString name,int type, QString server, QString log
 // FIXME: This method is madness with so many parameters
 // "result" is which "Blink when" radio button is checked
 // "parser" is the thing to match (Subject or From)
-void MainWindow::edit_mail(QString oldname, QString name,int type, QString server, QString login, QString passwd, int port, bool ssl, int result, QString parser){
-    qDebug()<<"EDIT EMAIL "+name;
-    addToLog("EDIT EMAIL "+name);
+// "result" is the kind of search to do (result=0 is "unread count", result=1 is "subject", result=2 is "Sender"
+// "result" is now "searchtype", "parser" is now "searchstr"
+void MainWindow::edit_mail(QString oldname, QString name,int type, QString server, QString username, QString passwd, int port, bool ssl, int searchtype, QString searchstr){
+    addToLog("edit_mail: "+name);
     QString value;
     if(emails.contains(oldname)){
         Email *e=emails.value(oldname);
-        value=e->getValue();
+        value = e->getValue();
         if(name=="") name="name";
         if(oldname!=name){
             int tmpfreq=e->getFreq();
-            int tmplastid=e->getLastid();
+            int tmplastmsgid = e->getLastMsgId();
             QString tmpPatt=e->getPatternName();
             emails.remove(oldname);
             disconnect(e);
@@ -1789,29 +1975,27 @@ void MainWindow::edit_mail(QString oldname, QString name,int type, QString serve
             e=new Email(name);
             e->setFreq(tmpfreq);
             e->setPatternName(tmpPatt);
-            e->setLastid(tmplastid);
+            e->setLastMsgId(tmplastmsgid);
             connect(e,SIGNAL(runPattern(QString,bool)),this,SLOT(runPattern(QString,bool)));
             connect(e,SIGNAL(addReceiveEvent(int,QString,QString)),this,SLOT(addRecentEvent(int,QString,QString)));
             connect(e,SIGNAL(addToLog(QString)),this,SLOT(addToLog(QString)));
         }
-        qDebug()<<"EDIT EMAIL "+name;
+        addToLog("edit_mail: "+name);
         e->setServer(server);
-        e->setType(type);
-        e->setLogin(login);
+        e->setServerType( (Email::ServerType)type );
+        e->setUsername(username);
         e->setPasswd(passwd);
         e->setPort(port);
         e->setSsl(ssl);
-        e->setResult(result);
-        e->setParser(parser);
+        //e->setSearchType( (searchtype==0) ? Email::UNREAD : (searchtype==1) ? Email::SUBJECT : Email::SENDER );
+        e->setSearchType( (Email::SearchType)searchtype );
+        e->setSearchString( searchstr );
         e->setValue(value);
-        QString email=login;
-        if(login.indexOf("@")==-1){
-            if(server.indexOf(".")!=-1)
-                email+="@"+server.mid(server.indexOf(".")+1);
-        }
-        e->setEmail(email);
+        e->setProxySettings( proxyType, proxyHost, proxyPort, proxyUser, proxyPass );
+        
         emails.insert(name,e);
-        e->setEdit(true);
+        
+        //e->settingsUpdated();  // FIXME: 
         e->checkMail();
     }
 }
@@ -1828,23 +2012,25 @@ void MainWindow::remove_email(QString name,bool update){
 void MainWindow::updateMail(){
     emit emailsUpdate();
 }
-
-void MainWindow::setFreqToEmail(QString name,int freq){
+/*
+void MainWindow::setFreqToEmailOld(QString name,int freq){
     int f;
-    if(freq==0){
-        f=12;
-    }else if(freq==1){
-        f=60;
-    }else if(freq==2){
-        f=180;
-    }else if(freq==3){
-        f=360;
-    }else{
-        f=720;
+    if(freq==0){        f=12;
+    }else if(freq==1){  f=60;
+    }else if(freq==2){  f=180;
+    }else if(freq==3){  f=360;
+    }else{              f=720;
     }
 
     if(emails.contains(name)){
         emails.value(name)->setFreq(f);
+        emit emailsUpdate();
+    }
+}
+*/
+void MainWindow::setFreqToEmail(QString name,int freq){
+    if(emails.contains(name)){
+        emails.value(name)->setFreq( freq );
         emit emailsUpdate();
     }
 }
@@ -1856,7 +2042,6 @@ void MainWindow::setPatternNameToEmail(QString name, QString pn){
     }
 }
 void MainWindow::checkMail(QString name){
-    qDebug()<<"checking email "<<name;
     addToLog("checking email "+name);
     if(emails.contains(name)){
         emails.value(name)->checkMail();
@@ -1871,8 +2056,7 @@ void MainWindow::setHostId(QString hostId){
     //hostId+="0";
     hostId.replace("_","0");
     iftttKey=hostId+iftttKey.right(8);
-    qDebug()<<iftttKey;
-    addToLog(iftttKey);
+    addToLog("setHostId: "+iftttKey);
     emit iftttUpdate();
 }
 bool MainWindow::checkHex( QString newText){
@@ -1934,7 +2118,6 @@ void MainWindow::setPatternNameToHardwareMonitor(QString name, QString pn){
     }
 }
 void MainWindow::checkHardwareMonitor(QString name){
-    qDebug()<<"checking hardware monitor "<<name;
     addToLog("checking hardware monitor "+name);
     if(hardwareMonitors.contains(name)){
         hardwareMonitors.value(name)->checkMonitor();
@@ -1962,8 +2145,7 @@ void MainWindow::copyPattern(QString name){
     emit updatePatternsNamesOnUi();
 }
 void MainWindow::add_new_hardwaremonitor(QString name,int type,int lvl, int action, int role){
-    qDebug()<<"NEW HARDWARE MONITOR "+name;
-    addToLog("NEW HARDWARE MONITOR "+name);
+    addToLog("add_new_hardwaremonitor: "+name);
     if(name=="") name="name";
     int ile=0;
     while(hardwareMonitors.contains(name)){
@@ -1983,8 +2165,7 @@ void MainWindow::add_new_hardwaremonitor(QString name,int type,int lvl, int acti
     e->checkMonitor();
 }
 void MainWindow::edit_hardwaremonitor(QString oldname,QString name,int type,int lvl, int action, int role){
-    qDebug()<<"EDIT HARDWAREMONITOR "+name;
-    addToLog("EDIT HARDWAREMONITOR "+name);
+    addToLog("edit_hardwaremonitor: "+name);
     QString value;
     if(hardwareMonitors.contains(oldname)){
         HardwareMonitor *e=hardwareMonitors.value(oldname);
@@ -2026,7 +2207,7 @@ void MainWindow::markHardwareEditing(QString s,bool e){
 }
 void MainWindow::addToLog(QString txt){
     qint64 nowMillis = QDateTime::currentDateTime().toMSecsSinceEpoch();
-    txt = QString::number(nowMillis) +":"+ txt;
+    txt = QString::number(nowMillis) +": "+ txt;
     qDebug()<<("log:"+txt);
     if(logging){
         if(logstream) {
@@ -2036,7 +2217,7 @@ void MainWindow::addToLog(QString txt){
     }
 }
 void MainWindow::resetAlertsOption(){
-    qDebug() << "resetAlertsOption";
+    addToLog("resetAlertsOption");
     if(patterns.contains(activePatternName)){
         patterns.value(activePatternName)->stop();
     }
@@ -2113,7 +2294,7 @@ bool MainWindow::addNewPatternFromPatternStr(QString name, QString patternStr){
     return true;
 }
 
-void MainWindow::startOrStopLogging(bool log){
+void MainWindow::startOrStopLogging(bool shouldLog){
     if(logging) {
         if(logFile) {
             logFile->close();
@@ -2123,19 +2304,21 @@ void MainWindow::startOrStopLogging(bool log){
             logstream=NULL;
         }
     }
-    logging = log;
+    logging = shouldLog;
     if(logging){
-        //logFile = new QFile("blink1control-log.txt");
-        //logFile = new QTemporaryFile("blink1control-log.txt");
         logFile = new QFile( QDir::tempPath() + "/blink1control-log.txt");
-        if (!logFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)){
-            qDebug()<<"File open error";
+        // to append to logfile, use this instead
+        //if (!logFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append)){
+        if (!logFile->open(QIODevice::WriteOnly | QIODevice::Text )){
+            qWarning() << "File open error";
             delete logFile;
             logFile=NULL;
         }else{
-            logstream=new QTextStream(logFile);
+            logstream = new QTextStream(logFile);
         }
-        qDebug() << "logging to "<< getLogFileName();
+        //qDebug() << "logging to "<< getLogFileName();
+        //if( trayIcon )
+        //    trayIcon->showMessage("Blink1Control logging", "logging to file "+getLogFileName());
     }
 }
 bool MainWindow::getLogging(){
@@ -2146,6 +2329,13 @@ QString MainWindow::getLogFileName() {
     if( !logFile ) return "";
     QFileInfo fileInfo(logFile->fileName());
     return QString(fileInfo.absoluteFilePath());
+}
+QString MainWindow::getSettingsFileName() {
+    //return (logFile!=NULL) ? logFile->fileName() : "";
+    //QFileInfo fileInfo(logFile->fileName());
+    // FIXME: make this match settingsLoad() & settingsSave()
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "ThingM", "Blink1Control");
+    return settings.fileName();
 }
 
 QMap<QString,Blink1Input*> MainWindow::getFullInputList(){
@@ -2189,7 +2379,7 @@ void MainWindow::updateColorsOnBigButtons2List(){
 
 void MainWindow::setStartupPattern( QString patternName )
 {
-    qDebug() << "setStartupPattern: "<<patternName;
+    addToLog("setStartupPattern: " + patternName);
     if( patternName == "_OFF" ) {
         for( int i=0; i<16; i++ ) {
             blink1_writePatternLine( blink1dev, 1000, 0,0,0, i ); // off
@@ -2222,62 +2412,82 @@ void MainWindow::setStartupPattern( QString patternName )
 }
 
 
-// the below was in MainWindow::MainWindow
 
-    //
-    // testing what visiblitity we have into window handling
-    //
-    //connect(&viewer,SIGNAL(closing(QQuickCloseEvent*)),this,SLOT(viewerClosingSlot(QQuickCloseEvent*)));
-    //if(mac()) connect(&viewer,SIGNAL(visibleChanged(bool)),this,SLOT(viewerVisibleChangedSlot(bool)));
-    // instead of above, just watch for when app is quitting,
-    // and use static bool to make sure we don't quit twice
-    //connect( qApp, SIGNAL(aboutToQuit()), this, SLOT(quit()) );
-
-    //connect( &viewer, SIGNAL(changeEvent(QEvent *)), this, SLOT(viewerChangeEvent(QEvent*)) );
-    //connect( &viewer, SIGNAL(statusChanged(QQuickView::Status)), this, SLOT(viewerStatusChanged(QQuickView::Status)) );
-    //connect( &viewer, SIGNAL(closing(QQuickCloseEvent*)),this,SLOT(viewerClosing(QQuickCloseEvent*)));
-    //connect( &viewer, SIGNAL(windowStateChanged(Qt::WindowState)),this,SLOT(viewerWindowStateChanged(Qt::WindowState)));
-    //connect( &viewer, SIGNAL(visibilityChanged(QWindow::Visibility)), this, SLOT(viewerVisibilityChanged(QWindow::Visibility)) );
-
-// for testing the above connect()s
-
-/*
-void MainWindow::changeEvent(QEvent* e)
+// from: http://blog.hostilefork.com/qt-essential-noisy-debug-hook/
+// By default, fairly big problems like QObject::connect not working due to not being able
+// to find a signal or slot goes to the debug output.  There can be a lot of spew which
+// makes that easy to miss.  While perhaps the release build would want to try and
+// keep going, it helps debugging to get told this ASAP.
+//
+// Would be nice to chain to the default Qt platform error handler
+// However, this is not feasible as there is no "default error handler" function
+// The default error handling is merely what runs in qt_message_output
+//
+//     http://qt.gitorious.org/qt/qt/blobs/4.5/src/corelib/global/qglobal.cpp#line2004
+//
+void noisyFailureMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
-    qDebug() << "changeEvent " << e;
-    QMainWindow::changeEvent(e);
-}
-// called only on minimize?
-void MainWindow::viewerVisibilityChanged(QWindow::Visibility visibility) {
-    qDebug() << "viewerVisibilityChanged: " << visibility;
+    QByteArray localMsg = msg.toLocal8Bit();
+    fprintf(stderr, "Blink1Control error: %s @ %s\n", localMsg.constData(), context.function );
+    //QString logstr;
+    //logstr.arg("noisyFailure: %s @ %s\n", localMsg.constData(), context.function); //nope
+    //addToLog( logstr );
+    
+    // this is another one that doesn't make sense as just a debug message.
+    // pretty serious sign of a problem
+    // http://www.developer.nokia.com/Community/Wiki/QPainter::begin:Paint_device_returned_engine_%3D%3D_0_(Known_Issue)
+    if ((type == QtDebugMsg)
+            && msg.contains("QPainter::begin")
+            && msg.contains("Paint device returned engine")) {
+        type = QtWarningMsg;
+    }
 
-}
-// called when minimize is finished
-void MainWindow::viewerWindowStateChanged(Qt::WindowState state) {
-    qDebug() << "viewerWindowStateChanged: " << state;
-    if( state == Qt::WindowMinimized ) {
-        qDebug() << "minimized!";
-        viewer.hide();
+    // This qWarning about "Cowardly refusing to send clipboard message to hung application..."
+    // is something that can easily happen if you are debugging and the application is paused.
+    // As it is so common, not worth popping up a dialog.
+    if ((type == QtWarningMsg)
+            && QString(msg).contains("QClipboard::event")
+            && QString(msg).contains("Cowardly refusing")) {
+        type = QtDebugMsg;
+    }
+
+    // only the GUI thread should display message boxes.  If you are
+    // writing a multithreaded application and the error happens on
+    // a non-GUI thread, you'll have to queue the message to the GUI
+    QCoreApplication * instance = QCoreApplication::instance();
+    const bool isGuiThread = 
+        instance && (QThread::currentThread() == instance->thread());
+
+    if (isGuiThread) {
+        QMessageBox messageBox;
+        switch (type) {
+        case QtDebugMsg:
+            return;
+        case QtWarningMsg:
+        case QtInfoMsg:
+            messageBox.setIcon(QMessageBox::Warning);
+            messageBox.setInformativeText(msg);
+            messageBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+            break;
+        case QtCriticalMsg:
+            messageBox.setIcon(QMessageBox::Critical);
+            messageBox.setInformativeText(msg);
+            messageBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+            break;
+        case QtFatalMsg:
+            messageBox.setIcon(QMessageBox::Critical);
+            messageBox.setInformativeText(msg);
+            messageBox.setStandardButtons(QMessageBox::Cancel);
+            break;
+        }
+
+        int ret = messageBox.exec();
+        if (ret == QMessageBox::Cancel)
+            abort();
+    } else {
+        if (type != QtDebugMsg)
+            abort(); // be NOISY unless overridden!        
     }
 }
-void MainWindow::viewerStatusChanged(QQuickView::Status status) {
-    qDebug() << "viewerStatusChanged: " << status;
-}
-void MainWindow::viewerChangeEvent(QEvent* event) {
-    qDebug() << "viewerChangeEvent: " << event;
-}
-void MainWindow::viewerClosing(QQuickCloseEvent*event){
-    qDebug() << "viewerClosing: "<< event ;
-}
 
-// these three not needed now we're just watching QApp::aboutToQuit() and using quit() for everything
-void MainWindow::viewerClosingSlot(QQuickCloseEvent* event){
-    qDebug() << "viewerClosingSlot: "<< event;
-}
-void MainWindow::viewerVisibleChangedSlot(bool v){
-    qDebug() << "viewerVisibleChangedSlot: "<< v;
-}
-void MainWindow::markViewerAsClosing(){
-    qDebug() << "markViewerAsClosing: ";
-}
-*/
+// eof

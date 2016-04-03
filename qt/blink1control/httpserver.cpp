@@ -169,11 +169,18 @@ void HttpServer::startRead(){
             resp.insert("status",QString("last color"));
         }
         else if( cmd=="/logging" ) {
-            QString levelstr = qurlquery.queryItemValue("loglevel");
+            QString levelstr="";
+            if( qurlquery.hasQueryItem("loglevel") ) {
+                levelstr = qurlquery.queryItemValue("loglevel");
+            } else if( qurlquery.hasQueryItem("logLevel") ) {
+                levelstr = qurlquery.queryItemValue("logLevel");
+            }
             if( levelstr == "1" || levelstr == "0" ) {
                 mw->startOrStopLogging(levelstr.toInt());
             }
-            resp.insert("loglevel",mw->getLogging());
+
+            resp.insert("loglevel",(mw->getLogging()) ? 1 : 0);
+            resp.insert("logfile", mw->getLogFileName());
             resp.insert("status",QString("logging"));
         }
         else if( cmd=="/input" || cmd=="/inputs" ) {
@@ -216,11 +223,17 @@ void HttpServer::startRead(){
             resp.insert("status",QString("input/ifttt not implemented yet"));
         }
         else if( cmd=="/pattern" || cmd=="/patterns" ) {
+            QString pname;
+            if( qurlquery.hasQueryItem("pname") ) {
+                pname = qurlquery.queryItemValue("pname");
+            }
             QJsonArray qarrp;
             QMap<QString,Blink1Pattern *>patterns=mw->getFullPatternList();
             foreach (QString nm, patterns.keys() ) {
-                QJsonObject obj = patterns.value(nm)->toJson(); //WithNameAndPatternStr();
-                qarrp.append(obj);
+                if( pname == "" || pname == nm ) {  // only add if all or a specific one
+                    QJsonObject obj = patterns.value(nm)->toJson(); //WithNameAndPatternStr();
+                    qarrp.append(obj);
+                }
             }
             resp.insert("patterns",qarrp);
             resp.insert("status",QString("patterns"));

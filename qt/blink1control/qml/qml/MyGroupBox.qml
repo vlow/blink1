@@ -25,7 +25,7 @@ Item{
             font.bold: true
             anchors.centerIn: parent
             //font.pointSize: (!mw.mac())?9:11
-            font.pixelSize:11
+            font.pixelSize:12
         }
     }
 }

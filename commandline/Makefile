@@ -80,7 +80,9 @@
 # "HIDDATA" type is best for low-resource Linux, 
 #  and the only dependencies it has is libusb-0.1
 #
-# Try either on the commandline with "make USBLIB_TYPE=HIDDATA" 
+# Try either on the commandline with:
+#  make USBLIB_TYPE=HIDDATA
+#  make USBLIB_TYPE=HIDAPI_HIDRAW
 #
 
 USBLIB_TYPE ?= HIDAPI
@@ -111,6 +113,9 @@ ifeq "$(UNAME)" "FreeBSD"
 	OS=freebsd
 endif
 
+ifeq "$(UNAME)" "OpenBSD"
+	OS=openbsd
+endif
 
 MACH_TYPE:="$(strip $(shell uname -m))"
 GIT_TAG:="$(strip $(shell git tag 2>&1 | tail -1 | cut -f1 -d' '))"
@@ -126,7 +131,8 @@ BLINK1_VERSION="$(GIT_TAG)-$(OS)-$(MACH_TYPE)"
 #################  Mac OS X  ##################################################
 ifeq "$(OS)" "macosx"
 LIBTARGET = libBlink1.dylib
-CFLAGS += -mmacosx-version-min=10.6 
+CFLAGS += -mmacosx-version-min=10.8
+#CFLAGS += -mmacosx-version-min=10.6 
 #CFLAGS += -fsanitize=address
 
 ifeq "$(USBLIB_TYPE)" "HIDAPI"
@@ -154,7 +160,7 @@ EXEFLAGS =
 LIBFLAGS = -dynamiclib -o $(LIBTARGET) -Wl,-search_paths_first $(LIBS)
 EXE=
 
-INSTALL = install -D
+INSTALL = install
 PREFIX ?= /usr/local
 EXELOCATION ?= $(PREFIX)/bin
 LIBLOCATION ?= $(PREFIX)/lib
@@ -275,6 +281,37 @@ INCLOCATION ?= $(PREFIX)/include
 
 endif
 
+#################  OpenBSD  ###################################################
+ifeq "$(OS)" "openbsd"
+LIBTARGET = libblink1.so
+# was blink1-lib.so
+
+ifeq "$(USBLIB_TYPE)" "HIDAPI"
+CFLAGS += -DUSE_HIDAPI
+CFLAGS += -I./hidapi/hidapi
+OBJS = ./hidapi/libusb/hid.o
+CFLAGS += `pkg-config libusb-1.0 --cflags` -I/usr/local/include -fPIC
+LIBS   += `pkg-config libusb-1.0 --libs` -L/usr/local/lib -lpthread -liconv
+endif
+
+ifeq "$(USBLIB_TYPE)" "HIDDATA"
+CFLAGS += -DUSE_HIDDATA
+OBJS = ./hiddata.o
+CFLAGS += `pkg-config libusb --cflags` -fPIC
+LIBS   += `pkg-config libusb --libs`
+endif
+
+LIBFLAGS = -shared -o $(LIBTARGET) $(LIBS)
+EXE=
+
+INSTALL = install
+PREFIX ?= /usr/local
+EXELOCATION ?= $(PREFIX)/bin
+LIBLOCATION ?= $(PREFIX)/lib
+INCLOCATION ?= $(PREFIX)/include
+
+endif
+
 #################  WRT Linux  ################################################
 ifeq "$(OS)" "wrtlinux"
 LIBTARGET = libblink1.so
@@ -307,6 +344,8 @@ endif
 ifeq "$(OS)" "yun"
 LIBTARGET = libblink1.so
 
+BLINK1_VERSION="$(GIT_TAG)-$(OS)-ar71xx"
+
 #ifeq "$(USBLIB_TYPE)" "HIDDATA"
 CFLAGS += -DUSE_HIDDATA
 OBJS = ./hiddata.o
@@ -333,6 +372,8 @@ endif
 ##############  Cross-compile WRT Linux  #####################################
 ifeq "$(OS)" "wrt"
 LIBTARGET = libblink1.so
+
+BLINK1_VERSION="$(GIT_TAG)-$(OS)-brcm47xx"
 
 #ifeq "$(USBLIB_TYPE)" "HIDDATA"
 CFLAGS += -DUSE_HIDDATA
@@ -382,6 +423,7 @@ help:
 	@echo "make OS=windows ... build Windows  blink1-lib and blink1-tool" 
 	@echo "make OS=linux   ... build Linux    blink1-lib and blink1-tool" 
 	@echo "make OS=freebsd ... build FreeBSD    blink1-lib and blink1-tool" 
+	@echo "make OS=openbsd ... build OpenBSD    blink1-lib and blink1-tool" 
 	@echo "make OS=macosx  ... build Mac OS X blink1-lib and blink1-tool" 
 	@echo "make OS=wrt     ... build OpenWrt blink1-lib and blink1-tool"
 	@echo "make OS=wrtcross... build for OpenWrt using cross-compiler"
@@ -435,12 +477,13 @@ clean:
 	rm -f blink1-tool$(EXE) blink1-tiny-server$(EXE)
 
 distclean: clean
-	rm -f blink1-tool$(EXE)
+	#rm -f blink1-tool$(EXE)
 	rm -f blink1-tiny-server$(EXE)
 	rm -f $(LIBTARGET) $(LIBTARGET).a
 	#rm blink1-lib.{a,lib,exp,dll,def}
-	rm libblink1.so 
-	rm blink1-tool.exe
+	rm -f libblink1.so  
+	rm -f blink1-tool
+	rm -f blink1-tool.exe
 
 # show shared library use
 # in general we want minimal to no dependecies for blink1-tool

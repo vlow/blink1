@@ -5,6 +5,7 @@
 
 QSharedMemory sharedMemory;
 
+
 int main(int argc, char *argv[])
 {
     MainApp a(argc,argv);
@@ -28,7 +29,7 @@ int main(int argc, char *argv[])
     }
 
 #endif
-
+   
     MainWindow w;  // this seems messed up, why even use mainwindow?
 
     return a.exec();

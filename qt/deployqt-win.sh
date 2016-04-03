@@ -18,16 +18,18 @@
 #
 #set -x # echo on
 
-# name of resulting directory you want, containing the application
-APP_DIR=Blink1Control
-EXE_NAME=Blink1Control.exe
+# BEGIN CONFIGURATION
 
 # Where "windeployqt.exe" lives (and the mingw libs)
 #QT_BIN_PATH=/c/qt/Qt5.2.1/5.2.1/mingw48_32/bin
 #QT_BIN_PATH=/c/Qt/5.3/mingw482_32/bin
 #QT_BIN_PATH=/c/qt/Qt5.3.1/5.3/msvc2013/bin
-QT_BIN_PATH=/c/qt/5.4/msvc2013/bin
+#QT_BIN_PATH=/c/qt/5.4/msvc2013/bin
+#QT_DIR=/c/qt/5.5/msvc2013
+QT_DIR=/c/qt/5.5/msvc2013
+QT_BIN_PATH=${QT_DIR}/bin
 
+# Where Visual Studio installation directory needed by "windeployqt.exe"
 #export VCINSTALLDIR=/c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio\ 12.0/VC
 export VCINSTALLDIR=/c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio\ 12.0/VC/
 
@@ -36,7 +38,17 @@ export VCINSTALLDIR=/c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio\ 12.0/V
 #BUILD_DIR=build-blink1control-Desktop_Qt_5_2_1_MinGW_32bit-Release/release
 #BUILD_DIR=build-blink1control-Desktop_Qt_5_3_MinGW_32bit-Release/release
 #BUILD_DIR=build-blink1control-Desktop_Qt_5_3_MSVC2013_32bit-Release/release
-BUILD_DIR=build-blink1control-Desktop_Qt_5_4_MSVC2013_32bit-Release/release
+#BUILD_DIR=build-blink1control-Desktop_Qt_5_4_MSVC2013_32bit-Release/release
+#BUILD_DIR=build-blink1control-Desktop_Qt_5_4_MSVC2013_32bit-Release/release
+#BUILD_DIR=build-blink1control-Desktop_Qt_5_4_2_MSVC2013_32bit-Release/release
+#BUILD_DIR=build-blink1control-Desktop_Qt_5_5_1_MSVC2013_32bit-Release/release
+BUILD_DIR=build-blink1control-Desktop_Qt_5_5_1_MSVC2013_32bit-Debug/debug
+
+# END CONFIGURATION
+
+# name of resulting directory you want, containing the application
+APP_DIR=Blink1Control
+EXE_NAME=Blink1Control.exe
 
 # where the source code lives (and the qml, and the help, and the readme)
 SRC_DIR="../../blink1control"
@@ -99,6 +111,8 @@ cp /c/windows/syswow64/{msvcp120,msvcr120}.dll .
 cp /c/OpenSSL-Win32/bin/libeay32.dll .
 cp /c/OpenSSL-Win32/bin/ssleay32.dll .
 
+# copy CURL DLLS  (FIXME: this seems to include SSL dlls yeah?)
+cp ${SRC_DIR}/libcurl-win/bin/*dll .
 
 #WINDEPLOYQT_OPTS=" --qmldir ${QML_DIR}"
 WINDEPLOYQT_OPTS+=" --no-translations"
@@ -121,7 +135,7 @@ rm -f ../${APP_DIR}-win.zip
 zip -q -r ../${APP_DIR}-win.zip ${APP_DIR}
 
 echo
-echo "Created '${APP_DIR}-win.zip'"
+echo "Done. Created '${APP_DIR}-win.zip'"
 
 popd
 
